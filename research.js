@@ -9,11 +9,13 @@
  * A: both, but merging seems pretty easy: just pass the output texture to merging shader and that’s it.
  * 	- btw WAA mixing seems to be flawed. It clips values over 0.5.
  * 		- the simple way - to distribute the energy within the chunk.
+ * 	- also we already have merging shader, so just sum up values.
  */
 
 
 /**
  * Q: how can we organize storing previous offset?
+ * A: we have 29 varyings but 32 spots in texture, so just store offsets in 3 remain spots
  */
 
 
