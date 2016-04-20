@@ -13,9 +13,9 @@ var glslify = require('glslify');
 //TODO: add real/fake noise flag to use real noise
 //TODO: use multiple buffers outputs for multiple channels?
 //TODO: it should be a class, because it has to store last offset value
-//TODO: do averaging in shader
+//TODO: do averaging in shader, merging multiple sines
 
-//default buffer size to render
+//default buffer size to render (in pixels)
 var width = 512/4;
 var height = 1;
 
@@ -25,6 +25,9 @@ var vpWidth = 32;
 
 //number of varyings to use, max - 29
 var VARYINGS = 29;
+
+//default sample rate
+var sampleRate = 44100;
 
 var gl = createContext({
 	width: width,
@@ -78,10 +81,10 @@ var vSrc = function (isEven, VARYINGS) { return `
 
 		//TODO: step is how many samples we should skip in texture to obtain needed frequency
 
+		float step = frequency / ${ sampleRate }.;
+		float range = 0.;
 		float lastSample = 0.0;
 		vec4 sample;
-		float step = 0.01;
-		float range = 0.;
 
 		//FIXME: extra 3 calculations here, for each vertex. Use it.
 		for (int i = 0; i < ${VARYINGS}; i++) {
@@ -143,7 +146,7 @@ var fSrc = function (isEven, VARYINGS) { return `
 		float start = x - innerOffset;
 
 		//prev block contains offset at the position of current block
-		vec2 offsetCoord = vec2( (start) / ${width - 1}., 0);
+		vec2 offsetCoord = vec2( (start) / ${width}., 0);
 		float offset = texture2D(prev, offsetCoord).w;
 
 		//get sound source position
@@ -187,9 +190,9 @@ var mergeProgram = createProgram(gl, vRectSrc, `
 
 	void main () {
 		float w = ${width}.;
-		float x = floor(gl_FragCoord.x);
-		float innerOffset = mod(x, ${VARYINGS}.);
-		float outerOffset = floor(x / ${VARYINGS}.);
+		float x = gl_FragCoord.x;
+		float innerOffset = mod(floor(x), ${VARYINGS}.);
+		float outerOffset = floor(floor(x) / ${VARYINGS}.);
 		vec4 phase;
 
 		if (isEven(outerOffset)) {
@@ -210,9 +213,7 @@ var sampleProgram = createProgram(gl, vRectSrc, `
 	uniform sampler2D phase;
 
 	void main () {
-		float w = ${width}.;
-		float x = floor(gl_FragCoord.x);
-		vec4 phaseSamples = texture2D(phase, vec2(x / w, 0));
+		vec4 phaseSamples = texture2D(phase, vec2(gl_FragCoord.x / ${width}., 0));
 
 		gl_FragColor = vec4(
 			texture2D(source, vec2(phaseSamples.x, 0)).x,
@@ -354,7 +355,7 @@ function generateNoise (len) {
 }
 
 
-
+//assign merge program inputs
 gl.useProgram(mergeProgram);
 var evenLocation = gl.getUniformLocation(mergeProgram, "even");
 var oddLocation = gl.getUniformLocation(mergeProgram, "odd");
@@ -372,7 +373,7 @@ gl.useProgram(sampleProgram);
 var sourceLocation = gl.getUniformLocation(sampleProgram, "source");
 gl.uniform1i(sourceLocation, 3);
 
-var sourceLen = 512;
+var sourceLen = 1024;
 var source = new Float32Array(sourceLen*4);
 for (var i = 0; i < sourceLen; i++) {
 	source[i*4] = Math.sin( i * (Math.PI * 2) / sourceLen);
@@ -383,7 +384,7 @@ for (var i = 0; i < sourceLen; i++) {
 gl.activeTexture(gl.TEXTURE3);
 var sourceTexture = createTexture(gl);
 gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 1, 0, gl.RGBA, gl.FLOAT, source);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 1, 0, gl.RGBA, gl.FLOAT, source);
 
 
 var phaseLocation = gl.getUniformLocation(sampleProgram, "phase");
@@ -401,6 +402,7 @@ var locations = {
 };
 
 
+//setup formant values
 gl.useProgram(evenProgram);
 var frequencyLocation = gl.getUniformLocation(evenProgram, 'frequency');
 var amplitudeLocation = gl.getUniformLocation(evenProgram, 'amplitude');
@@ -408,6 +410,10 @@ var qualityLocation = gl.getUniformLocation(evenProgram, 'quality');
 locations.frequency.push(frequencyLocation);
 locations.amplitude.push(amplitudeLocation);
 locations.quality.push(qualityLocation);
+
+gl.uniform1f(frequencyLocation, 440);
+
+
 gl.useProgram(oddProgram);
 var frequencyLocation = gl.getUniformLocation(oddProgram, 'frequency');
 var amplitudeLocation = gl.getUniformLocation(oddProgram, 'amplitude');
@@ -415,6 +421,11 @@ var qualityLocation = gl.getUniformLocation(oddProgram, 'quality');
 locations.frequency.push(frequencyLocation);
 locations.amplitude.push(amplitudeLocation);
 locations.quality.push(qualityLocation);
+
+gl.uniform1f(frequencyLocation, 440);
+
+
+
 
 
 //bind copy buffer

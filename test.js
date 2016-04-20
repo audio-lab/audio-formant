@@ -3,9 +3,10 @@ var populate = require('./');
 var Speaker = require('audio-speaker');
 var Through = require('audio-through');
 var AudioBuffer = require('audio-buffer');
+var util = require('audio-buffer-utils');
 
 
-test.only('Just draw one slice', function () {
+test('Just draw one slice', function () {
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 
 	// show(buffer.left, 512, 1);
@@ -14,32 +15,49 @@ test.only('Just draw one slice', function () {
 	show(buffer, 512, 1);
 
 
-	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	var buffer2 = populate(new AudioBuffer(512)).getChannelData(0);
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
 	// show(buffer.phase, 512, 1);
-	show(buffer, 512, 1);
+	show(buffer2, 512, 1);
+	showWaveform([].slice.apply(buffer).concat([].slice.apply(buffer2)));
 
 
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 	show(buffer, 512, 1);
+	// showWaveform(buffer);
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 	show(buffer, 512, 1);
+	// showWaveform(buffer);
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 	show(buffer, 512, 1);
+	// showWaveform(buffer);
 });
 
 
 test('Basic sound', function () {
 	var faq = [0.5, 1, 1, 1];
 
+	var data = [];
 	Through(function (buffer) {
+		// if (this.frame > 2) return null;
 		populate(buffer);
+		data.push(buffer);
+
+		// var self = this;
+		// util.fill(buffer, function (sample, channel, idx) {
+		// 	return Math.sin(Math.PI * 2 * (self.count + idx) * 440 / 44100);
+		// });
+
 		return buffer;
 	}, {
+		//FIXME: there is a trouble when framesize is too small
 		samplesPerFrame: 512
-	}).pipe(Speaker());
+	})
+	.pipe(Speaker({
+		samplesPerFrame: 512
+	}));
 });
 
 
@@ -66,6 +84,40 @@ function show (pixels, w, h) {
 }
 
 
+//last painted wf offset
+var offset = 0;
+
+function showWaveform (buffer) {
+	var wfCanvas = document.createElement('canvas');
+	wfCanvas.width = 800;
+	wfCanvas.height = 300;
+	var wfCtx = wfCanvas.getContext('2d');
+	document.body.appendChild(wfCanvas);
+
+
+	var len = buffer.length;
+
+	wfCtx.clearRect(0, 0, wfCanvas.width, wfCanvas.height);
+
+	var amp = wfCanvas.height / 2;
+
+
+	var step = 1;
+	var middle = amp;
+
+	wfCtx.beginPath();
+	wfCtx.moveTo(0, middle);
+
+	for (var i = 0; i < len; i++) {
+		var sampleNumber = (step * i)|0;
+		var sample = buffer[sampleNumber];
+
+		wfCtx.lineTo(i, -sample * amp + middle);
+		wfCtx.lineTo(i + 1, -sample * amp + middle);
+	}
+
+	wfCtx.stroke();
+}
 
 
 
