@@ -80,7 +80,7 @@ var vSrc = function (isEven, VARYINGS) { return `
 
 		float lastSample = 0.0;
 		vec4 sample;
-		float step = 0.013;
+		float step = 0.01;
 		float range = 0.;
 
 		//FIXME: extra 3 calculations here, for each vertex. Use it.
@@ -436,10 +436,16 @@ var count = 0;
  * @param {Array} buffer An array to fill with data
  * @param {Array} soundprint A data for the sound
  */
-function populate (buffer, top) {
-	buffer.left = new Float32Array(buffer.length);
-	buffer.right = new Float32Array(buffer.length);
-	buffer.phase = new Float32Array(buffer.length);
+function populate (audioBuffer, top) {
+	// buffer.left = new Float32Array(buffer.length);
+	// buffer.right = new Float32Array(buffer.length);
+	// buffer.phase = new Float32Array(buffer.length);
+
+	var buffers = [];
+	for (var i = 0; i < audioBuffer.numberOfChannels; i++) {
+		buffers[i] = audioBuffer.getChannelData(i);
+	}
+	buffer = buffers[0];
 
 	//active even or odd program
 	var even = true;
@@ -449,9 +455,7 @@ function populate (buffer, top) {
 		gl.viewport(vpOffset, 0, vpWidth, height);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
 		gl.drawArrays(gl.TRIANGLES, 0, 3*height);
-
-		showRendered(vpOffset, even ? 0 : 1);
-
+		// showRendered(vpOffset, even ? 0 : 1);
 		even = !even;
 	}
 
@@ -461,8 +465,7 @@ function populate (buffer, top) {
 	gl.useProgram(mergeProgram);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.phase);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.phase);
 
 
 	//switch sampling program
@@ -471,6 +474,7 @@ function populate (buffer, top) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, sampleFramebuffer);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
+	//main read
 	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer);
 
 
@@ -482,16 +486,20 @@ function populate (buffer, top) {
 
 
 	//read left/right buffers
-	gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.left);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.right);
+	// gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.left);
+	// gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.right);
 
 
 	count++;
-	return buffer;
-}
 
+	for (var i = 1; i < audioBuffer.numberOfChannels; i++) {
+		buffers[i].set(buffer);
+	}
+
+	return audioBuffer;
+}
 
 
 module.exports = populate;

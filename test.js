@@ -1,13 +1,12 @@
 var test = require('tst');
 var populate = require('./');
-// var Speaker = require('audio-speaker');
-// var Through = require('audio-through');
+var Speaker = require('audio-speaker');
+var Through = require('audio-through');
+var AudioBuffer = require('audio-buffer');
 
 
 test.only('Just draw one slice', function () {
-	var buffer = new Float32Array(512);
-
-	buffer = populate(buffer);
+	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
@@ -15,8 +14,7 @@ test.only('Just draw one slice', function () {
 	show(buffer, 512, 1);
 
 
-	var buffer = new Float32Array(512*4);
-	buffer = populate(buffer);
+	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
@@ -24,20 +22,12 @@ test.only('Just draw one slice', function () {
 	show(buffer, 512, 1);
 
 
-	var buffer = new Float32Array(512*4);
-	buffer = populate(buffer);
-
-	// // show(buffer.left, 512, 1);
-	// // show(buffer.right, 512, 1);
+	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 	show(buffer, 512, 1);
-
-
-	// var buffer = new Float32Array(512*4);
-	// buffer = populate(buffer);
-
-	// // show(buffer.left, 512, 1);
-	// // show(buffer.right, 512, 1);
-	// show(buffer, 512, 1);
+	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	show(buffer, 512, 1);
+	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	show(buffer, 512, 1);
 });
 
 
@@ -46,6 +36,9 @@ test('Basic sound', function () {
 
 	Through(function (buffer) {
 		populate(buffer);
+		return buffer;
+	}, {
+		samplesPerFrame: 512
 	}).pipe(Speaker());
 });
 
