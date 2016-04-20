@@ -16,7 +16,7 @@ var glslify = require('glslify');
 //TODO: do averaging in shader
 
 //default buffer size to render
-var width = 512;
+var width = 512/4;
 var height = 1;
 
 //single-slice width
@@ -80,7 +80,7 @@ var vSrc = function (isEven, VARYINGS) { return `
 
 		float lastSample = 0.0;
 		vec4 sample;
-		float step = 0.02;
+		float step = 0.013;
 		float range = 0.;
 
 		//FIXME: extra 3 calculations here, for each vertex. Use it.
@@ -143,7 +143,7 @@ var fSrc = function (isEven, VARYINGS) { return `
 		float start = x - innerOffset;
 
 		//prev block contains offset at the position of current block
-		vec2 offsetCoord = vec2( (start - 1.0) / ${width - 1}., 0);
+		vec2 offsetCoord = vec2( (start) / ${width - 1}., 0);
 		float offset = texture2D(prev, offsetCoord).w;
 
 		//get sound source position
@@ -186,7 +186,7 @@ var mergeProgram = createProgram(gl, vRectSrc, `
 	}
 
 	void main () {
-		float w = ${width - 1}.;
+		float w = ${width}.;
 		float x = floor(gl_FragCoord.x);
 		float innerOffset = mod(x, ${VARYINGS}.);
 		float outerOffset = floor(x / ${VARYINGS}.);
@@ -210,7 +210,7 @@ var sampleProgram = createProgram(gl, vRectSrc, `
 	uniform sampler2D phase;
 
 	void main () {
-		float w = ${width - 1}.;
+		float w = ${width}.;
 		float x = floor(gl_FragCoord.x);
 		vec4 phaseSamples = texture2D(phase, vec2(x / w, 0));
 
@@ -225,10 +225,12 @@ var sampleProgram = createProgram(gl, vRectSrc, `
 
 //copy the end of phase texture into the beginning of the right one
 var copyProgram = createProgram(gl, vRectSrc, `
+	precision lowp float;
+
 	uniform sampler2D phase;
 
 	void main () {
-		gl_FragColor = texture2D(phase, vec2(1, 0));
+		gl_FragColor = texture2D(phase, vec2(${width-1}. / ${width}., 0));
 	}
 `);
 
@@ -280,7 +282,7 @@ gl.linkProgram(sampleProgram);
 
 
 
-//create main output framebuffer
+//create main framebuffers
 var evenFramebuffer = gl.createFramebuffer();
 var oddFramebuffer = gl.createFramebuffer();
 var mergeFramebuffer = gl.createFramebuffer(); //phase merge
@@ -288,10 +290,19 @@ var sampleFramebuffer = gl.createFramebuffer(); //sample phase
 var copyFramebuffer = gl.createFramebuffer(); //copy
 
 
+//create main textures
 var leftTexture = createTexture(gl);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+
 var rightTexture = createTexture(gl);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+
 var outputTexture = createTexture(gl);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+
 var phaseTexture = createTexture(gl);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+
 
 
 //bind output textures to framebuffers
@@ -407,16 +418,14 @@ locations.quality.push(qualityLocation);
 
 
 //bind copy buffer
-// gl.useProgram(copyProgram);
-// var phaseLocation = gl.getUniformLocation(copyProgram, "phase");
-// gl.uniform1i(phaseLocation, 4);
-// gl.activeTexture(gl.TEXTURE4);
-// gl.bindTexture(gl.TEXTURE_2D, phaseTexture);
+gl.useProgram(copyProgram);
+var phaseLocation = gl.getUniformLocation(copyProgram, "phase");
+gl.uniform1i(phaseLocation, 4);
+gl.activeTexture(gl.TEXTURE4);
+gl.bindTexture(gl.TEXTURE_2D, phaseTexture);
 
 
 
-
-//active framebuffer/shader, 0/1
 
 var count = 0;
 
@@ -432,10 +441,10 @@ function populate (buffer, top) {
 	buffer.right = new Float32Array(buffer.length);
 	buffer.phase = new Float32Array(buffer.length);
 
-
+	//active even or odd program
 	var even = true;
 
-	for (var vpOffset = 0; vpOffset < width/4; vpOffset += VARYINGS) {
+	for (var vpOffset = 0; vpOffset < width; vpOffset += VARYINGS) {
 		gl.useProgram(even ? evenProgram : oddProgram);
 		gl.viewport(vpOffset, 0, vpWidth, height);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
@@ -446,11 +455,6 @@ function populate (buffer, top) {
 		even = !even;
 	}
 
-	//read left/right buffers
-	gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.left);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.right);
 
 	//switch to merging program
 	gl.viewport(0, 0, width, height);
@@ -468,6 +472,20 @@ function populate (buffer, top) {
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
 	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer);
+
+
+	//switch to copy program
+	gl.viewport(0, 0, 3, height);
+	gl.useProgram(copyProgram);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, copyFramebuffer);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+
+	//read left/right buffers
+	gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
+	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.left);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
+	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.right);
 
 
 	count++;
@@ -535,9 +553,7 @@ function createProgram (gl, vSrc, fSrc) {
 }
 
 
-function createTexture (gl, data) {
-	data = data || null;
-
+function createTexture (gl) {
 	var texture = gl.createTexture();
 
 	gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -545,7 +561,6 @@ function createTexture (gl, data) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, data);
 
 	return texture;
 }

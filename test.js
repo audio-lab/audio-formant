@@ -5,31 +5,31 @@ var populate = require('./');
 
 
 test.only('Just draw one slice', function () {
-	var buffer = new Float32Array(512*4);
+	var buffer = new Float32Array(512);
 
 	buffer = populate(buffer);
-
-	show(buffer.left, 512, 1);
-	show(buffer.right, 512, 1);
-	show(buffer.phase, 512, 1);
-	show(buffer, 512, 1);
-
-
-	// var buffer = new Float32Array(512*4);
-	// buffer = populate(buffer);
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
 	// show(buffer.phase, 512, 1);
-	// show(buffer, 512, 1);
+	show(buffer, 512, 1);
 
 
-	// var buffer = new Float32Array(512*4);
-	// buffer = populate(buffer);
+	var buffer = new Float32Array(512*4);
+	buffer = populate(buffer);
+
+	// show(buffer.left, 512, 1);
+	// show(buffer.right, 512, 1);
+	// show(buffer.phase, 512, 1);
+	show(buffer, 512, 1);
+
+
+	var buffer = new Float32Array(512*4);
+	buffer = populate(buffer);
 
 	// // show(buffer.left, 512, 1);
 	// // show(buffer.right, 512, 1);
-	// show(buffer, 512, 1);
+	show(buffer, 512, 1);
 
 
 	// var buffer = new Float32Array(512*4);
