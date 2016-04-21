@@ -9,13 +9,13 @@
  * A: both, but merging seems pretty easy: just pass the output texture to merging shader and that’s it.
  * 	- btw WAA mixing seems to be flawed. It clips values over 0.5.
  * 		- the simple way - to distribute the energy within the chunk.
- * 	- also we already have merging shader, so just sum up values.
+ * 	- ✔ also we already have merging shader, so just sum up values.
  */
 
 
 /**
  * Q: how can we organize storing previous offset?
- * A: we have 29 varyings but 32 spots in texture, so just store offsets in 3 remain spots
+ * A: ✔ we have 29 varyings but 32 spots in texture, so just store offsets in 3 remain spots
  */
 
 
@@ -35,4 +35,19 @@
 
 /**
  * Q: what is faster - switching framebuffer or rebinding texture?
+ * A: does not matter, both seem to be fast
+ */
+
+
+/**
+ * Q: What is difference between relative and absolute frequency?
+ * A: relative shows relation within the formant tuple, absolute shows formant’s main frequency
+ * Q: Which one should we use here?
+ * A: Use absolute, because relative is business-logic dependent, controlled by pulse
+ */
+
+
+/**
+ * Q: How quality is related with steps/frequency/range?
+ * A: best of all to use natural representation 0..∞
  */

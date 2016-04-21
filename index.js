@@ -58,7 +58,7 @@ if (!floatLinear) throw Error('WebGL does not support floats.');
 
 
 var vSrc = function (isEven, VARYINGS) { return `
-	precision highp float;
+	precision lowp float;
 
 	//coords of a vertex
 	attribute vec2 position;
@@ -75,37 +75,53 @@ var vSrc = function (isEven, VARYINGS) { return `
 	//noise accumulator to pick values from the source texture
 	varying vec4 samples[${VARYINGS}];
 
+	//texture of last rendered frame
+	uniform sampler2D lastOutput;
+
+	//return step value for the frequency
+	//step is how many samples we should skip in texture to obtain needed frequency
+	//0 = 0hz, 0.5 = π
+	float getStep (float f) {
+		return clamp(f / ${ sampleRate }., 0., 0.5);
+	}
+
 	//generate samples
 	void main (void) {
 		gl_Position = vec4(position, 0, 1);
 
-		//TODO: step is how many samples we should skip in texture to obtain needed frequency
+		float range = 1000.;
 
-		float step = frequency / ${ sampleRate }.;
-		float range = 0.;
 		float lastSample = 0.0;
 		vec4 sample;
 
-		//FIXME: extra 3 calculations here, for each vertex. Use it.
-		for (int i = 0; i < ${VARYINGS}; i++) {
-			//noise step from last sample
-			sample = texture2D(noise, vec2(float(i) / ${VARYINGS - 1}., 0) );
+		float someOutputSample = texture2D(lastOutput, vec2(${isEven ? .25 : .75}, 0)).y;
 
-			sample.x = fract(step + (sample.x * range - range * 0.5) + lastSample);
-			sample.y = fract(step + (sample.y * range - range * 0.5) + sample.x);
-			sample.z = fract(step + (sample.z * range - range * 0.5) + sample.y);
-			sample.w = fract(step + (sample.w * range - range * 0.5) + sample.z);
+		//FIXME: extra 3 calculations here, for each vertex. Use it.
+		for (int idx = 0; idx < ${VARYINGS}; idx++) {
+			float i = float(idx);
+
+			//pick new noise coord from the last output
+			//hope it gets close to random noise coords
+			vec2 coord = texture2D(lastOutput, vec2( someOutputSample + i * 0.571 / ${VARYINGS}., 0)).${isEven ? 'xz': 'wy'};
+
+			//noise step from last sample
+			sample = texture2D(noise, coord);
+
+			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
+			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
+			sample.z = fract( getStep(frequency + sample.z*range - range*0.5) + sample.y);
+			sample.w = fract( getStep(frequency + sample.w*range - range*0.5) + sample.z);
 
 			//save last offset
 			lastSample = sample.w;
 
-			samples[i] = sample;
+			samples[idx] = sample;
 		}
 	}
 `; }
 
 var fSrc = function (isEven, VARYINGS) { return `
-	precision highp float;
+	precision lowp float;
 
 	//noise samples
 	uniform sampler2D noise;
@@ -299,7 +315,7 @@ var rightTexture = createTexture(gl);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
 
 var outputTexture = createTexture(gl);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, new Float32Array(generateNoise(width*height*4)));
 
 var phaseTexture = createTexture(gl);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
@@ -325,14 +341,27 @@ var prevLocation = gl.getUniformLocation(evenProgram, "prev");
 gl.uniform1i(prevLocation, 1);
 gl.activeTexture(gl.TEXTURE1);
 gl.bindTexture(gl.TEXTURE_2D, rightTexture);
+
+var outputLocation = gl.getUniformLocation(evenProgram, "lastOutput");
+gl.uniform1i(outputLocation, 5);
+gl.activeTexture(gl.TEXTURE5);
+gl.bindTexture(gl.TEXTURE_2D, outputTexture);
+
 gl.useProgram(oddProgram);
 var prevLocation = gl.getUniformLocation(oddProgram, "prev");
 gl.uniform1i(prevLocation, 0);
 gl.activeTexture(gl.TEXTURE0);
 gl.bindTexture(gl.TEXTURE_2D, leftTexture);
 
+var outputLocation = gl.getUniformLocation(oddProgram, "lastOutput");
+gl.uniform1i(outputLocation, 5);
+gl.activeTexture(gl.TEXTURE5);
+gl.bindTexture(gl.TEXTURE_2D, outputTexture);
+
 
 //create and bind noise texture
+//appears that 16x16 is enough for picking randomish noises
+//but for thruthful mean we need more
 gl.useProgram(evenProgram);
 var noiseLocation = gl.getUniformLocation(evenProgram, "noise");
 gl.uniform1i(noiseLocation, 2);
@@ -342,9 +371,9 @@ gl.uniform1i(noiseLocation, 2);
 
 gl.activeTexture(gl.TEXTURE2);
 var noiseTexture = createTexture(gl);
-var noise = new Float32Array(generateNoise(512*4));
+var noise = new Float32Array(generateNoise(256*256*4));
 gl.bindTexture(gl.TEXTURE_2D, noiseTexture);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 1, 0, gl.RGBA, gl.FLOAT, noise);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.FLOAT, noise);
 
 function generateNoise (len) {
 	var res = [];
@@ -412,6 +441,7 @@ locations.amplitude.push(amplitudeLocation);
 locations.quality.push(qualityLocation);
 
 gl.uniform1f(frequencyLocation, 440);
+gl.uniform1f(qualityLocation, 0.93);
 
 
 gl.useProgram(oddProgram);
@@ -423,6 +453,7 @@ locations.amplitude.push(amplitudeLocation);
 locations.quality.push(qualityLocation);
 
 gl.uniform1f(frequencyLocation, 440);
+gl.uniform1f(qualityLocation, 0.93);
 
 
 
@@ -457,6 +488,7 @@ function populate (audioBuffer, top) {
 		buffers[i] = audioBuffer.getChannelData(i);
 	}
 	buffer = buffers[0];
+
 
 	//active even or odd program
 	var even = true;
