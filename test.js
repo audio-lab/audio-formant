@@ -6,7 +6,7 @@ var AudioBuffer = require('audio-buffer');
 var util = require('audio-buffer-utils');
 
 
-test('Just draw one slice', function () {
+test.only('Just draw one slice', function () {
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 
 	// show(buffer.left, 512, 1);
@@ -33,6 +33,23 @@ test('Just draw one slice', function () {
 	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
 	show(buffer, 512, 1);
 	// showWaveform(buffer);
+});
+
+
+test('Performance', function () {
+	//Collect performance metrics to render 1s of a sound.
+
+	//Results
+	//1. Triangle verteces, viewport shift ~130ms
+	//2. Line verteces, viewport shift
+
+	var buf = new AudioBuffer(512);
+
+	test('Run', function () {
+		for (var i = 0; i < 44100/512; i++) {
+			populate(buf);
+		}
+	});
 });
 
 

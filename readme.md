@@ -1,3 +1,5 @@
+SOM (Sound Object Model) is unique sound description class based on describing and reproducing sound on shaders.
+
 Formant speaker converts formants sound data to waveform.
 It takes a state — "soundprint", and generates audio based on it.
 

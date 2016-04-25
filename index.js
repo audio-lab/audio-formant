@@ -10,18 +10,13 @@ var createShader = require('gl-shader-core');
 var glslify = require('glslify');
 
 
-//TODO: add real/fake noise flag to use real noise
-//TODO: use multiple buffers outputs for multiple channels?
-//TODO: it should be a class, because it has to store last offset value
-//TODO: do averaging in shader, merging multiple sines
-
 //default buffer size to render (in pixels)
 var width = 512/4;
 var height = 1;
 
 //single-slice width
 //vp width is a bit more than renderable window (VARYINGS) to store offsets at the end
-var vpWidth = 32;
+var blockSize = 32;
 
 //number of varyings to use, max - 29
 var VARYINGS = 29;
@@ -82,14 +77,15 @@ var vSrc = function (isEven, VARYINGS) { return `
 	//step is how many samples we should skip in texture to obtain needed frequency
 	//0 = 0hz, 0.5 = π
 	float getStep (float f) {
-		return clamp(f / ${ sampleRate }., 0., 0.5);
+		// return clamp(f / ${ sampleRate }., 0., 0.5);
+		return f / ${ sampleRate }.;
 	}
 
 	//generate samples
 	void main (void) {
 		gl_Position = vec4(position, 0, 1);
 
-		float range = 1000.;
+		float range = 4000.;
 
 		float lastSample = 0.0;
 		vec4 sample;
@@ -478,10 +474,12 @@ var count = 0;
  * @param {Array} buffer An array to fill with data
  * @param {Array} soundprint A data for the sound
  */
-function populate (audioBuffer, top) {
+function populate (audioBuffer) {
 	// buffer.left = new Float32Array(buffer.length);
 	// buffer.right = new Float32Array(buffer.length);
 	// buffer.phase = new Float32Array(buffer.length);
+
+	//TODO: render into 2-row buffer, each row for a channel, then just set audiobuffer channels
 
 	var buffers = [];
 	for (var i = 0; i < audioBuffer.numberOfChannels; i++) {
@@ -495,7 +493,7 @@ function populate (audioBuffer, top) {
 
 	for (var vpOffset = 0; vpOffset < width; vpOffset += VARYINGS) {
 		gl.useProgram(even ? evenProgram : oddProgram);
-		gl.viewport(vpOffset, 0, vpWidth, height);
+		gl.viewport(vpOffset, 0, blockSize, height);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
 		gl.drawArrays(gl.TRIANGLES, 0, 3*height);
 		// showRendered(vpOffset, even ? 0 : 1);
@@ -556,7 +554,7 @@ function showRendered (offset, active) {
 	el.style.position = 'absolute';
 	el.style.top = 16 + ( (active) * 18) + count * 18 * 3.2 + 'px';
 	el.style.background = 'rgba(255,0,0,.1)';
-	el.style.width = vpWidth*4 + 'px';
+	el.style.width = blockSize*4 + 'px';
 	el.style['z-index'] = -1;
 	el.style.height = '1px';
 	el.innerHTML = offset;
