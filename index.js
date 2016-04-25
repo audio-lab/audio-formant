@@ -77,7 +77,6 @@ var vSrc = function (isEven, VARYINGS) { return `
 	//step is how many samples we should skip in texture to obtain needed frequency
 	//0 = 0hz, 0.5 = π
 	float getStep (float f) {
-		// return clamp(f / ${ sampleRate }., 0., 0.5);
 		return f / ${ sampleRate }.;
 	}
 
@@ -85,7 +84,7 @@ var vSrc = function (isEven, VARYINGS) { return `
 	void main (void) {
 		gl_Position = vec4(position, 0, 1);
 
-		float range = 4000.;
+		float range = 1000.;
 
 		float lastSample = 0.0;
 		vec4 sample;
@@ -265,12 +264,10 @@ function createVerteces (n) {
 	var step = 2 / n;
 	for (var i = 0; i < n; i++) {
 		res.push(-1);
-		res.push(last);
-		res.push(15);
-		res.push(last);
+		res.push( last - step*.5 );
+		res.push(1);
+		res.push( last - step*.5);
 		last -= step;
-		res.push(-1);
-		res.push(last);
 	}
 	return res;
 }
@@ -495,7 +492,7 @@ function populate (audioBuffer) {
 		gl.useProgram(even ? evenProgram : oddProgram);
 		gl.viewport(vpOffset, 0, blockSize, height);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
-		gl.drawArrays(gl.TRIANGLES, 0, 3*height);
+		gl.drawArrays(gl.LINES, 0, 2*height);
 		// showRendered(vpOffset, even ? 0 : 1);
 		even = !even;
 	}
