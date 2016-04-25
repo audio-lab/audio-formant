@@ -45,7 +45,7 @@ test('Performance', function () {
 	//2. Line verteces, viewport shift ~130ms
 	//3. Line verteces, drawArrays subsetting ~120ms
 	//This is almost no difference. We get rid of re-setting viewport,
-	//but each render it still checks for verteces intersecting viewport.
+	//but each render it still checks for whether verteces intersect viewport.
 
 	var buf = new AudioBuffer(512);
 

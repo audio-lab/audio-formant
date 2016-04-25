@@ -1,7 +1,7 @@
 {
-  "name": "audio-something",
+  "name": "audio-formant",
   "version": "1.0.0",
-  "description": "Convert formants to sound",
+  "description": "Play formant images",
   "main": "index.js",
   "scripts": {
     "test": "node test.js",
@@ -9,36 +9,35 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/audio-lab/xxxxx.git"
+    "url": "https://github.com/audio-lab/formant"
   },
   "keywords": [
     "audio",
-    "formant",
-    "webgl",
-    "gpu",
-    "sound"
+    "sound",
+    "pulse"
   ],
-  "browserify": {
-    "transform": [
-      "glslify"
-    ]
-  },
   "author": "DY <dfcreative@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/audio-lab/xxxxx/issues"
+    "url": "https://github.com/audio-lab/formant/issues"
   },
-  "homepage": "https://github.com/audio-lab/xxxxx#readme",
+  "homepage": "https://github.com/audio-lab/formant",
+  "dependencies": {
+    "audio-buffer": "^2.3.3",
+    "audio-generator": "^1.1.0",
+    "audio-through": "^1.2.0",
+    "gaussian": "^1.0.0",
+    "gl-shader-output": "^2.0.1",
+    "inherits": "^2.0.1",
+    "nogl-shader-output": "^1.4.2",
+    "webgl-context": "^2.2.0"
+  },
   "devDependencies": {
     "audio-speaker": "^1.2.3",
+    "audio-spectrum": "^1.0.0",
+    "audio-waveform": "^1.3.0",
+    "gl-shader-output": "^2.0.1",
+    "nogl-shader-output": "^1.4.2",
     "tst": "^1.3.1"
-  },
-  "dependencies": {
-    "audio-buffer-utils": "^2.0.2",
-    "audio-through": "^1.2.0",
-    "gl-shader-core": "^2.2.0",
-    "glsl-noise": "0.0.0",
-    "glslify": "^5.0.2",
-    "webgl-context": "^2.2.0"
   }
 }
