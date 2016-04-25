@@ -7,11 +7,12 @@ var util = require('audio-buffer-utils');
 
 
 test('Just draw one slice', function () {
-	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	var aBuffer = populate(new AudioBuffer(512))
+	var buffer = aBuffer.getChannelData(0);
 
-	// show(buffer.left, 512, 1);
-	// show(buffer.right, 512, 1);
-	// show(buffer.phase, 512, 1);
+	// show(aBuffer.left, 512, 1);
+	// show(aBuffer.right, 512, 1);
+	// show(aBuffer.phase, 512, 1);
 	show(buffer, 512, 1);
 
 
@@ -36,17 +37,19 @@ test('Just draw one slice', function () {
 });
 
 
-test.only('Performance', function () {
+test('Performance', function () {
 	//Collect performance metrics to render 1s of a sound.
 
 	//Results
 	//1. Triangle verteces, viewport shift ~130ms
 	//2. Line verteces, viewport shift ~130ms
-	//3. Line verteces, drawArrays subsetting
+	//3. Line verteces, drawArrays subsetting ~120ms
+	//This is almost no difference. We get rid of re-setting viewport,
+	//but each render it still checks for verteces intersecting viewport.
 
 	var buf = new AudioBuffer(512);
 
-	test('Run', function () {
+	test('1s of one sine', function () {
 		for (var i = 0; i < 44100/512; i++) {
 			populate(buf);
 		}

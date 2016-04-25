@@ -14,12 +14,10 @@ var glslify = require('glslify');
 var width = 512/4;
 var height = 1;
 
-//single-slice width
-//vp width is a bit more than renderable window (VARYINGS) to store offsets at the end
-var blockSize = 32;
-
 //number of varyings to use, max - 29
 var VARYINGS = 29;
+
+var blocksNumber = width / VARYINGS;
 
 //default sample rate
 var sampleRate = 44100;
@@ -39,6 +37,8 @@ gl.disable(gl.POLYGON_OFFSET_FILL);
 gl.disable(gl.SAMPLE_COVERAGE);
 gl.disable(gl.SCISSOR_TEST);
 gl.disable(gl.STENCIL_TEST);
+
+gl.lineWidth(1.0);
 
 
 //enable requried extensions
@@ -250,25 +250,36 @@ var copyProgram = createProgram(gl, vRectSrc, `
 
 //create input buffer with number of verteces === height
 var buffer = gl.createBuffer();
+var verteces = new Float32Array(createVerteces(blocksNumber, height));
 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(createVerteces(height)), gl.STATIC_DRAW);
+gl.bufferData(gl.ARRAY_BUFFER, verteces, gl.STATIC_DRAW);
+
 gl.enableVertexAttribArray(1)
 //index, size, type, normalized, stride, offset (pointer)
 gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
 gl.bindAttribLocation(evenProgram, 1, 'position');
 gl.bindAttribLocation(oddProgram, 1, 'position');
 
-function createVerteces (n) {
+function createVerteces (m, n) {
 	var res = [];
-	var last = 1;
-	var step = 2 / n;
-	for (var i = 0; i < n; i++) {
-		res.push(-1);
-		res.push( last - step*.5 );
-		res.push(1);
-		res.push( last - step*.5);
-		last -= step;
+
+	var lastX = -1;
+	var stepX = 2 / m;
+
+	for (var x = 0; x < Math.ceil(m); x++) {
+		var lastY = 1;
+		var stepY = 2 / n;
+		for (var y = 0; y < n; y++) {
+			res.push( lastX );
+			res.push( lastY - stepY*.5 );
+			//should overlap a tiny bit to save offset info
+			res.push( lastX + stepX*1.05 );
+			res.push( lastY - stepY*.5);
+			lastY -= stepY;
+		}
+		lastX += stepX;
 	}
+
 	return res;
 }
 
@@ -472,10 +483,6 @@ var count = 0;
  * @param {Array} soundprint A data for the sound
  */
 function populate (audioBuffer) {
-	// buffer.left = new Float32Array(buffer.length);
-	// buffer.right = new Float32Array(buffer.length);
-	// buffer.phase = new Float32Array(buffer.length);
-
 	//TODO: render into 2-row buffer, each row for a channel, then just set audiobuffer channels
 
 	var buffers = [];
@@ -485,49 +492,54 @@ function populate (audioBuffer) {
 	buffer = buffers[0];
 
 
+	//copy phase into right channel before rendering
+	// gl.viewport(0, 0, 3, height);
+	gl.useProgram(copyProgram);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, copyFramebuffer);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+	// gl.viewport(0, 0, width, height);
+
+
 	//active even or odd program
 	var even = true;
 
-	for (var vpOffset = 0; vpOffset < width; vpOffset += VARYINGS) {
+	for (var block = 0; block < blocksNumber; block++) {
 		gl.useProgram(even ? evenProgram : oddProgram);
-		gl.viewport(vpOffset, 0, blockSize, height);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
-		gl.drawArrays(gl.LINES, 0, 2*height);
-		// showRendered(vpOffset, even ? 0 : 1);
+		gl.drawArrays(gl.LINES, block * 2 * height, 2);
+		// showRendered(block, even ? 0 : 1);
 		even = !even;
 	}
 
 
 	//switch to merging program
-	gl.viewport(0, 0, width, height);
 	gl.useProgram(mergeProgram);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.phase);
 
 
-	//switch sampling program
-	gl.viewport(0, 0, width, height);
+	//switch to sampling program
 	gl.useProgram(sampleProgram);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, sampleFramebuffer);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-	//main read
+
+	//read main output
 	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer);
 
 
-	//switch to copy program
-	gl.viewport(0, 0, 3, height);
-	gl.useProgram(copyProgram);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, copyFramebuffer);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-
 	//read left/right buffers
+	// audioBuffer.left = new Float32Array(buffer.length);
+	// audioBuffer.right = new Float32Array(buffer.length);
 	// gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.left);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.left);
 	// gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.right);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.right);
+
+	// audioBuffer.phase = new Float32Array(buffer.length);
+	// gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
+	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.phase);
 
 
 	count++;
@@ -542,24 +554,6 @@ function populate (audioBuffer) {
 
 module.exports = populate;
 
-
-
-
-function showRendered (offset, active) {
-	var el = document.createElement('div');
-	el.style.left = `${offset*4}px`;
-	el.style.position = 'absolute';
-	el.style.top = 16 + ( (active) * 18) + count * 18 * 3.2 + 'px';
-	el.style.background = 'rgba(255,0,0,.1)';
-	el.style.width = blockSize*4 + 'px';
-	el.style['z-index'] = -1;
-	el.style.height = '1px';
-	el.innerHTML = offset;
-	el.style.fontSize = '8px';
-	el.style.fontFamily = 'sans-serif';
-	el.style.color = 'rgba(220,220,220,1)';
-	document.body.appendChild(el);
-}
 
 
 

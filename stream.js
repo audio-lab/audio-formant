@@ -12,10 +12,8 @@ var createContext = require('webgl-context');
 //TODO: name it formant-sound. literally is does that - converts formants to sound.
 //TODO: add real/fake noise flag to use real noise
 //TODO: render channels to 2-row output.
-//TODO: it should be a class, because it has to store last offset value
 //TODO: do averaging in shader, merging multiple sines
 //TODO: use drawElements to reference existing vertex coords instead. That is tiny-piny but optimization, esp for large number of rows.
-//TODO: instead of switching viewport render subset of verteces for a long chunk. That is faster (in theory) and allows for binding formant values to buffers.
 //TODO: set sound source sprite, set fractions for basic sources. Do not expect source texture be repeating, repeat manually.
 
 
