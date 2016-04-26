@@ -157,7 +157,7 @@ var fSrc = function (isEven, VARYINGS) { return `
 		float start = x - innerOffset;
 
 		//prev block contains offset at the position of current block
-		vec2 offsetCoord = vec2( (start) / ${width}., 0);
+		vec2 offsetCoord = vec2( start / ${width}., 0);
 		float offset = texture2D(prev, offsetCoord).w;
 
 		//get sound source position

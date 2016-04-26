@@ -1,19 +1,73 @@
-SOM (Sound Object Model) is unique sound description class based on describing and reproducing sound on shaders.
+> Convert [formants](formants ref) to audio.
 
-Formant speaker converts formants sound data to waveform.
-It takes a state — "soundprint", and generates audio based on it.
+To understand the idea behind formants read [formants ref](). Briefly, formant is HSL color model applied to sound, where each sound fragment is presented with "pixel", aka formant, comprised of _frequency_, _amplitude_, _quality_ and _panning_ channels. In that, any image can be regarded as sound texture and reproduced in sound. That allows for creating natural lightweight "soundprints".
+
+Converting formants data to audio is the purpose of this package.
+
+## Usage
+
+[![npm install audio-formant](https://nodei.co/npm/audio-formant.png?mini=true)](https://npmjs.org/package/audio-formant/)
 
 ```js
-var toSound = require('formant-to-sound');
+var createFormant = require('audio-formant');
 
-var result = toSound(data);
+//create formant converter instance
+var formant = createFormant({
+	//gl context, created if omitted
+	gl: gl,
+
+	//output buffer size
+	samplesPerFrame: 512,
+
+	//output number of channels
+	channels: 2,
+
+	//sample rate of output audio chunk
+	sampleRate: 44100
+});
+
+
+//set formants data
+formant.data(arr);
+
+//fill array with audio data corresponding to current formant texture
+formant.populate(arr);
+
+//stream formant to audio stream, e. g. audio-speaker
+formant.pipe(audioStream);
+
+
+
+//WebGL textures used in rendering process.
+//Can be rendered to, sent a new data to or read from.
+
+//input formant values
+formant.textures.formants;
+
+//input noise samples for uncertainty param
+formant.textures.noise;
+
+//input source primitives
+formant.textures.source;
+
+//output signal phases
+formant.textures.phase;
+
+//output sampled waveforms, unmerged
+formant.textures.waveform;
+
+//output single waveform, merged into channels
+formant.textures.output;
 ```
 
-## Scheme of generating sound
 
-To understand the idea behind formants read [formants ref]. Briefly, the sound is produced by randomizing phase and picking a sample corresponding to the phase from a source, which can be a sine wave etc. WebGL is perfect for interpolating source based on required phase and handling multitude of samples in parallel. Source waveform is a texture, phase is x-coordinate within that texture.
+## Scheme
 
-The main problem with generating sound in webgl is that we need correlation info between samples, i. e. in current sample we should know the value of previous sample. That is impossible to do based on fragments, because they are designed to do things in parallel. The solution is populating varyings array in vertex shader, and converting them to fragments in fragment shader.
+The process of generating sound is based on WebGL, as it renders the best performance among other technologies (web audio API, streams, web-workers), due to highly parallel nature and low-level interpolating.
+
+[image]
+
+The sound is produced by picking samples from a sound source (like sine wave, saw or complex wav file) based on sequence of phase values. Phase values are generated from _frequency_ and _quality_ formant channels and `sampleRate`.
 
 The scheme comprises 5 shaders:
 
@@ -24,8 +78,6 @@ The scheme comprises 5 shaders:
 
 The principle is generating additive noise steps and putting them to varyings, like so:
 [image]
-
-Maximum number of varyings can be 29 vec4’s, so we limit size of rendered viewport to 29px wide, which is 112 sound samples. In that, the output noisy wave is comprised of 112 wide chunks.
 
 First, we generate 29px of noise samples chunks. We restrict viewport to 0..32 (we should use 2^n textures) and step over buffer with shift multiple of 29 - the number of varyings.
 
@@ -44,39 +96,9 @@ That’s basically it. We just save phase info back to odd buffer to provide sea
 
 
 
-
-----------------old
+## Formant
 
 Formant is a sound primitive, able to describe/produce atomic signal oscillation in terms of _frequency_, _magnitude_ and _quality_. It is like HSL color space, but for sound, where H stands for frequency, S for quality and L for intensity.
-
-Formant is a component of [audio-pulse](https://github.com/audio-lab/audio-pulse), which is a model of a sound.
-
-
-## Usage
-
-[![npm install audio-formant](https://nodei.co/npm/audio-formant.png?mini=true)](https://npmjs.org/package/audio-formant/)
-
-```js
-var Formant = require('audio-formant');
-var Speaker = require('audio-speaker');
-
-Formant({
-	//frequency is expressed on [0..1] interval as min/max frequency
-	frequency: 1,
-
-	//0 - flat spectrum, 1 - pure sine
-	quality: 0.95,
-
-	//change magnitude linearly from 0 to 1
-	magnitude: function (t) {
-		return t;
-	}
-})
-.pipe(Speaker());
-```
-
-
-## Concept
 
 Formant is a concept of [HSL color model](), applied to a [stochastic harmonic model](), which takes benefits of both. To grasp the idea, imagine a bandpass filter applied to the white noise.
 
@@ -110,6 +132,6 @@ Criterions of a formant:
 
 ## Related
 
-> [audio-pulse](https://npmjs.org/package/audio-pulse) — A model, approximating any sound, based on audio-formants.
-> [audio-dsp coursera course](https://class.coursera.org/audio-002/wiki/week7) — a coursera introductory class to digital signal processing for audio.<br/>
-> [periodic-wave](https://webaudio.github.io/web-audio-api/#the-periodicwave-interface) — a very clever way to define phasor in code.
+> [audio-pulse](https://npmjs.org/package/audio-pulse) — declarative formants-based model of sound description.<br/>
+> [audio-dsp coursera course](https://class.coursera.org/audio-002/wiki/week7) — coursera introductory class to digital signal processing for audio.<br/>
+> [periodic-wave](https://webaudio.github.io/web-audio-api/#the-periodicwave-interface) — a way to define phasor in code.

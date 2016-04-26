@@ -1,13 +1,15 @@
 var test = require('tst');
-var populate = require('./');
 var Speaker = require('audio-speaker');
 var Through = require('audio-through');
 var AudioBuffer = require('audio-buffer');
 var util = require('audio-buffer-utils');
+var createFormant = require('./');
 
 
 test('Just draw one slice', function () {
-	var aBuffer = populate(new AudioBuffer(512))
+	var formant = createFormant();
+
+	var aBuffer = formant.populate(new AudioBuffer(512))
 	var buffer = aBuffer.getChannelData(0);
 
 	// show(aBuffer.left, 512, 1);
@@ -61,24 +63,14 @@ test('Sound', function () {
 	var faq = [0.5, 1, 1, 1];
 
 	var data = [];
-	Through(function (buffer) {
-		// if (this.frame > 2) return null;
-		populate(buffer);
-		data.push(buffer);
 
-		// var self = this;
-		// util.fill(buffer, function (sample, channel, idx) {
-		// 	return Math.sin(Math.PI * 2 * (self.count + idx) * 440 / 44100);
-		// });
+	var formant = createFormant({
+		samplesPerFrame: 1024,
 
-		return buffer;
-	}, {
-		//FIXME: there is a trouble when framesize is too small
-		samplesPerFrame: 512
-	})
-	.pipe(Speaker({
-		samplesPerFrame: 512
-	}));
+	});
+
+
+	formant.pipe(Speaker());
 });
 
 

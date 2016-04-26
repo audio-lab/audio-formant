@@ -1,6 +1,23 @@
+## Q: should we populate AudioBuffer or simple buffer?
++ allows for figuring out output format properties to render, like sampleRate, channels
+	- complicates process of rendering - we have to setup renderer based on this data
+	- forces using audiobuffers for audio output, but maybe there is need for other consumers
+- Allows for user to decide how to treat returned data
++ How should we detect number of channels then?
+	- Just preset width and channels as input options, don’t figure them out.
+✔ ok, more points for populating simple buffer.
+
+## Q: should we return renderer function or instance?
++ renderer function is concise and logical - straight API possibility
+- other methods are difficult to add and illogical
+	+ if there are other methods.
+- name confusion: formant = createFormant(); formant.populate() is ok; populateFormant = createFormant() is illogical.
+✔ ok, instance is better, is allows for flexibility, name logic and enables classic pattern.
+
+
 
 ## Q: how can we use the fact that noise varying samples are calculated 3 times per triangle, for each vertex?
-
+A: Use lines, now only 2 times.
 
 
 
