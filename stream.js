@@ -8,6 +8,9 @@
 
 var createContext = require('webgl-context');
 var extend = require('xtend/mutable');
+var pcmUtil = require('pcm-util');
+var glslify = require('glslify');
+
 
 //TODO: render channels to 2-row output.
 //TODO: do averaging in shader, merging multiple sines
@@ -26,30 +29,34 @@ function Formant (options) {
 
 	this.initGl();
 	this.initNoise();
+
+
+	this.textures = {
+		formants: createTexture(this.gl),
+		noise: createTexture(this.gl),
+		source: createTexture(this.gl),
+		phase: createTexture(this.gl),
+		waveforms: createTexture(this.gl),
+		output: createTexture(this.gl)
+	};
+
+
+	this.framebuffers = {
+		phase,
+		merge,
+		copy
+	};
+
+	this.programs = {
+		phase: createProgram(this.gl, glslify('./shader/rect.vert'), glslify('./shader/phase.frag')),
+		merge,
+		copy
+	};
 }
 
-//default buffer size to render (in pixels)
-Formant.prototype.width = 512/4;
 
-//number of formants to render
-Formant.prototype.height = 256;
-
-
-//number of output channels === number of rows.
-Formant.prototype.channels = 2;
-
-//default sample rate to render to
-Formant.prototype.sampleRate = 44100;
-
-//single-slice width
-//vp width is a bit more than renderable window (VARYINGS) to store offsets at the end
-//FIXME: calc based on varyings size
-Formant.prototype.blockSize = 32;
-
-//number of varyings to use, max - 29
-//TODO: detect it from the gl instance
-Formant.prototype.varyings = 29;
-
+//sampleRate, channels, samplesPerFrame are primary concern
+extend(Formant.prototype, pcmUtil.defaults);
 
 
 /**
@@ -86,27 +93,31 @@ Formant.prototype.initGl = function () {
  * Populates passed buffer with audio data separated by channels
  */
 Formant.prototype.populate = function (buffer) {
+	this.gl.useProgram(this.programs.copy);
+	this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.copy);
+	this.gl.re
 };
 
 
 /**
- * Init noise texture
+ * Initialize additive noise textures.
  */
-Formant.prototype.updateNoise = function () {
+//TODO: optimize this part, too many things can be done in parallel
+Formant.prototype.generateNoise = function (w, h) {
+	var w = 512, h = 512;
+	var data = new Float32Array(w*h);
 
-};
+	for (var j = 0; j < h; j++) {
+		var prev = 0;
 
-
-/**
- * Return array with noise items
- */
-Formant.prototype.generateNoise = function (arr) {
-	var res = [];
-	for (var i = 0; i < len; i++) {
-		res.push(Math.random());
+		//fill rows with random sequence of phase
+		for (var i = 0; i < w; i++) {
+			prev = data[j*w + i] = (prev + Math.random()) % 1;
+		}
 	}
-	return res;
-}
+
+	return data;
+};
 
 
 /**

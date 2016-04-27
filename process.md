@@ -152,3 +152,13 @@ A: Ideally - place to texture, even separated by lines (thats ok), but as far we
 	+ DOM has bonuses like id’s, classes, queries, attributes, data, etc.
 	+ With DOM we could also delegate sound structure visualizing straight to DOM, avoiding WebGL.
 	- To render sound we still have to connect them to rendering process like formant-sound, if not to duplicate structure.
+
+
+## Q: what are the rendering expenses?
+
+A: in order of price:
+
+0. setting viewport, setting float uniform, switching program, switching framebuffer
+1. overcalculating shaders in parallel. Almost NO difference, safely include overcalc per-fragment.
+2. drawing arrays/elements
+3. reading pixels
