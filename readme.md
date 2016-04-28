@@ -1,5 +1,3 @@
-> Convert formants to audio.
-
 [![npm install audio-formant](https://nodei.co/npm/audio-formant.png?mini=true)](https://npmjs.org/package/audio-formant/)
 
 ```js
@@ -10,7 +8,7 @@ var converter = createConverter({
 	gl: document.createElement('canvas').getContext('webgl'),
 
 	//number of formants to process (optional)
-	formants: 2,
+	formants: 4,
 
 	//output array length (optional)
 	blockSize: 512,
@@ -29,7 +27,7 @@ converter.setFormants([0,0,1,1, 1,1,0,0]);
 //populate floatArray with audio data in planar format
 converter.populate(array?);
 
-//init sound sources from the data (or sine)
+//set formant’s source sound, if undefined - sine will be generated
 converter.initSource(data?);
 
 //regenerate noise texture

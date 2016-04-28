@@ -11,9 +11,7 @@ test.only('Just draw one slice', function () {
 
 	var buffer = formant.populate();
 
-	// show(aBuffer.left, 512, 1);
-	// show(aBuffer.right, 512, 1);
-	// show(aBuffer.phase, 512, 1);
+	// show(buffer.phase, 512, 1);
 	show(buffer, 512, 1);
 
 
@@ -62,21 +60,24 @@ test('Performance', function () {
 });
 
 
-test('Sound', function () {
-	var faq = [0.5, 1, 1, 1];
+test.only('Sound', function () {
+	var formant = createFormant();
 
-	var data = [];
 	Through(function (buffer) {
 		// if (this.frame > 2) return null;
-		populate(buffer);
-		data.push(buffer);
+
+		var res = formant.populate();
+
+		var half = res.length / 2;
+		buffer.getChannelData(0).set(res.slice(0, half));
+		buffer.getChannelData(1).set(res.slice(half));
 
 		// var self = this;
 		// util.fill(buffer, function (sample, channel, idx) {
 		// 	return Math.sin(Math.PI * 2 * (self.count + idx) * 440 / 44100);
 		// });
 
-		return buffer;
+		// return buffer;
 	}, {
 		//FIXME: there is a trouble when framesize is too small
 		samplesPerFrame: 512

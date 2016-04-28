@@ -281,6 +281,8 @@ Formant.prototype.populate = function (buffer) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
+	gl.readPixels(0, 0, this.blockSize/4, this.channels, gl.RGBA, gl.FLOAT, buffer);
+
 	return buffer;
 };
 
