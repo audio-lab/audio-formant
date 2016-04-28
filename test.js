@@ -6,9 +6,10 @@ var util = require('audio-buffer-utils');
 var createFormant = require('./stream.js');
 
 
-test('Just draw one slice', function () {
-	var aBuffer = populate(new AudioBuffer(512))
-	var buffer = aBuffer.getChannelData(0);
+test.only('Just draw one slice', function () {
+	var formant = createFormant();
+
+	var buffer = formant.populate();
 
 	// show(aBuffer.left, 512, 1);
 	// show(aBuffer.right, 512, 1);
@@ -16,7 +17,7 @@ test('Just draw one slice', function () {
 	show(buffer, 512, 1);
 
 
-	var buffer2 = populate(new AudioBuffer(512)).getChannelData(0);
+	var buffer2 = formant.populate();
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
@@ -25,19 +26,20 @@ test('Just draw one slice', function () {
 	showWaveform([].slice.apply(buffer).concat([].slice.apply(buffer2)));
 
 
-	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	var buffer = formant.populate();
 	show(buffer, 512, 1);
 	// showWaveform(buffer);
-	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	var buffer = formant.populate();
 	show(buffer, 512, 1);
 	// showWaveform(buffer);
-	var buffer = populate(new AudioBuffer(512)).getChannelData(0);
+	var buffer = formant.populate();
 	show(buffer, 512, 1);
 	// showWaveform(buffer);
 });
 
 
-test.only('Performance', function () {
+test('Performance', function () {
+	var populate = require('./index2.js');
 	//Collect performance metrics to render 1s of a sound.
 
 	//Results
@@ -46,6 +48,9 @@ test.only('Performance', function () {
 	//3. Line verteces, drawArrays subsetting ~120ms
 	//This is almost no difference. We get rid of re-setting viewport,
 	//but each render it still checks for whether verteces intersect viewport.
+	//4. A big triangle of seq calc by each fragment ~90ms
+	//Parallel things are like one longest thing, worry about only lenghten calc
+	//within all parallel threads.
 
 	var buf = new AudioBuffer(512);
 

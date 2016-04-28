@@ -1,3 +1,0 @@
-/**
- * Generating phase shader
- */

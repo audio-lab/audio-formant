@@ -1,11 +1,12 @@
 ## Q: should we populate AudioBuffer or simple buffer?
 + allows for figuring out output format properties to render, like sampleRate, channels
-	- complicates process of rendering - we have to setup renderer based on this data
-	- forces using audiobuffers for audio output, but maybe there is need for other consumers
+- complicates process of rendering - we have to setup renderer based on this data
+- forces using audiobuffers for audio output, but maybe there is need for consumers, maybe they want to render to custom container
 - Allows for user to decide how to treat returned data
 + How should we detect number of channels then?
 	- Just preset width and channels as input options, don’t figure them out.
-✔ ok, more points for populating simple buffer.
++ Formant better knows how to populate audioBuffer the fastest way, that is bonus for users who use audioBuffers
+	- ✔ Create audio-formant-stream module doing dirty job. Here provide clean interface.
 
 ## Q: should we return renderer function or instance?
 + renderer function is concise and logical - straight API possibility
@@ -13,6 +14,23 @@
 	+ if there are other methods.
 - name confusion: formant = createFormant(); formant.populate() is ok; populateFormant = createFormant() is illogical.
 ✔ ok, instance is better, is allows for flexibility, name logic and enables classic pattern.
+
+
+## Q (old): Do we really need time? It expresses variation and relation, which can be delegated to pulse.
+- Time expresses relative stretch, eg. the sky, which is a single formant with changing color. It is impossible with pulse, which would define three timeless formants instead.
+	+ That is purely domain logic of formants variation, definitely a pulse’s task - how formants go with each other
+- It expresses simple variation, eg swipe, where frequency is simply moved. With pulses it would be two formants, antialiased or alike.
+	+ And that is very naturally can be done in pulse as line-verteces with bound formant values.
+- It may express sine variation, like a changing color of a sky.
+	+ Domain logic
+
+
+## (old) Criterions of a formant:
+
+* Low autocorrelation. That means that formant does not contain repetitions within itself.
+* Beginning and end, or more generically, ADSR character.
+* Unability to be stretched, only scaled.
+* No absolute external units introduced, i. e. formant is fully normalized through itself.
 
 
 
@@ -158,7 +176,7 @@ A: Ideally - place to texture, even separated by lines (thats ok), but as far we
 
 A: in order of price:
 
-0. setting viewport, setting float uniform, switching program, switching framebuffer
-1. overcalculating shaders in parallel. Almost NO difference, safely include overcalc per-fragment.
+0. setting viewport, setting float uniform, switching program, switching framebuffer, rebinging texture - almost no price.
+1. overcalculating shaders in parallel. Almost NO difference, safely include overcalc per-fragment. N calcs in parallel = calc of lengthen chunk, so if the long calc is unavoidable, safely put it to each fragment if needed.
 2. drawing arrays/elements
-3. reading pixels
+10. reading pixels

@@ -20,6 +20,9 @@
     "web audio",
     "WAA"
   ],
+  "browserify": {
+    "transform": ["glslify"]
+  },
   "author": "Dima Yv <dfcreative@gmail.com>",
   "license": "MIT",
   "bugs": {
