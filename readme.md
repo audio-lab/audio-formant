@@ -5,9 +5,8 @@
 ```js
 var createConverter = require('audio-formant');
 
-//Create formants converter instance based on settings (optional).
 var converter = createConverter({
-	//gl context, created in case if omitted
+	//can be omitted
 	gl: document.createElement('canvas').getContext('webgl'),
 
 	//number of formants to process (optional)
@@ -24,27 +23,23 @@ var converter = createConverter({
 });
 
 
-//Set formants data: a collection of <frequency, amplitude, panning, quality> tuples.
-//For better performance and accuracy — render `textures.formants`.
+//set formants — a collection of <frequency, amplitude, panning, quality> tuples
 converter.setFormants([0,0,1,1, 1,1,0,0]);
 
-//Populate floats array with audio data in planar format.
-//If array is omitted - a new one will be created.
+//populate floatArray with audio data in planar format
 converter.populate(array?);
 
-//Init source texture values. If data is omitted then sine will be generated.
+//init sound sources from the data (or sine)
 converter.initSource(data?);
 
-//Regenerate noise texture (if you feel bad about current one).
+//regenerate noise texture
 converter.updateNoise();
 
 
-//Formants data, can be re-rendered to vary formants data per-sample.
-//Faster than `setFormants`.
+//re-render to vary formants data per-sample, faster than `setFormants`
 converter.textures.formants;
 
-//Source primitives for according formant rows.
-//Can be replaced to triangle, saw, etc. or modified for specific formant rows.
+//sound sources of formants
 converter.textures.source;
 
 
@@ -54,9 +49,11 @@ converter.textures.source;
 
 ## What is formant?
 
-First off, there is a couple of [definitions of formant in wikipedia](https://en.wikipedia.org/wiki/Formant) for background. Here is an opinionated concept of formant is used.
+First off, there is a couple of [definitions of formant in wikipedia](https://en.wikipedia.org/wiki/Formant) for background. Here is opinionated concept of formant used.
 
-Formant is a sound primitive, able to describe/produce atomic signal oscillation in terms of _frequency_, _amplitude_ and _quality_. The idea is inspired by [HSL color model](https://en.wikipedia.org/wiki/HSL_and_HSV) applied to sound, where hue is frequency, saturation is quality and lightness is amplitude. The idea is reminiscent of [stochastic harmonic oscillator](), where noise is used as a driving signal. Practically it can be seend as a bandpass filter applied to the white noise. In reality it can be found in almost any harmonic oscillator, starting from vocal tract - the noise is used as a driving signal, therefore there is uncertainty, or quality of produced sound.
+Formant is a sound primitive, able to describe/produce atomic signal oscillation in terms of _frequency_, _intensity_ and _quality_. The idea is inspired by [HSL color model](https://en.wikipedia.org/wiki/HSL_and_HSV) applied to sound, where hue is frequency, saturation is quality and lightness is amplitude. The idea is reminiscent of [stochastic harmonic oscillator](), where noise is used as a driving signal. Practically it can be seen as a bandpass filter applied to white noise. In reality it can be found in almost any harmonic oscillator, starting from vocal tract - the noise is used as a driving signal, therefore there is uncertainty of produced sound.
+
+> TODO: rework this part
 
 _Frequency_ is similar to the notion of frequency in [phasor](https://en.wikipedia.org/wiki/Phasor), but it is expressed in unitless relative manner. _0_ is a constant level, _1_ is a fundamental frequency _f0_, _0.5_ — half of _f0_, 2 — twice of _f0_, etc. By that, frequency can relate one formant to other as overtone or modulation, and can be rendered into any needed pitch. Intuitively frequency displays massiveness, as more massive objects expose lower frequencies, see [simple harmonic motion](https://en.wikipedia.org/wiki/Simple_harmonic_motion).
 
@@ -66,6 +63,10 @@ _Quality_ is similar to notion of [quality factor](https://en.wikipedia.org/wiki
 
 All that makes formant a versaile tool for describing singnals in practical sense.
 In metaphorical sense, formant expresses harmony/chaos ratio, quality/quantity relation and a locally defined order of change.
+
+## Why WebGL?
+
+> TODO: compare with web-audio-api, web-workers, streams.
 
 
 ## Related
