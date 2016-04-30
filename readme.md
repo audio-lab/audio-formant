@@ -7,7 +7,7 @@ var converter = createConverter({
 	//can be omitted
 	gl: document.createElement('canvas').getContext('webgl'),
 
-	//number of formants to process (optional)
+	//formants data or number of formants to process (optional)
 	formants: 4,
 
 	//output array length (optional)
@@ -24,11 +24,11 @@ var converter = createConverter({
 });
 
 
-//set formants — a sequence of <frequency, amplitude, panning, quality> tuples
-converter.setFormants([0,0,1,1, 1,1,0,0]);
-
 //populate floatArray with audio data in planar format
 converter.populate(array?);
+
+//set formants — a sequence of <frequency, amplitude, panning, quality> tuples
+converter.setFormants([0,0,1,1, 1,1,0,0]);
 
 //set formant’s source waveform, by default - <sine, rect, triangle, saw> generated
 converter.setSource(data?);

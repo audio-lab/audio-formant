@@ -21,7 +21,9 @@
     "WAA"
   ],
   "browserify": {
-    "transform": ["glslify"]
+    "transform": [
+      "brfs"
+    ]
   },
   "author": "Dima Yv <dfcreative@gmail.com>",
   "license": "MIT",
@@ -31,9 +33,7 @@
   "homepage": "https://github.com/audio-lab/formant",
   "dependencies": {
     "audio-buffer": "^2.3.3",
-    "audio-through": "^1.2.0",
     "inherits": "^2.0.1",
-    "pcm-util": "^2.0.2",
     "webgl-context": "^2.2.0"
   },
   "devDependencies": {

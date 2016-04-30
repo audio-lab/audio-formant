@@ -8,7 +8,6 @@
 
 var createContext = require('webgl-context');
 var extend = require('xtend/mutable');
-var glslify = require('glslify');
 
 
 module.exports = Formant;
@@ -19,8 +18,9 @@ module.exports = Formant;
 //TODO: use drawElements to reference existing vertex coords instead. That is tiny-piny but optimization, esp for large number of rows.
 //TODO: set sound source sprite, set fractions for basic sources. Do not expect source texture be repeating, repeat manually.
 //TODO: optimization: put 0 or 1 quality values to big-chunks processing (no need to calc sequences for them)
-//TODO: place large waveform formants to merge stage, do not chunk-process them
 //TODO: cache noise sequences to avoid varyings chunking
+
+
 
 
 /**
@@ -30,6 +30,12 @@ function Formant (options) {
 	if (!(this instanceof Formant)) return new Formant(options);
 
 	extend(this, options);
+
+	var formantsData;
+	if (Array.isArray(this.formants) || ArrayBuffer.isView(this.formants)) {
+		formantsData = this.formants;
+		this.formants = formantsData.length / 4;
+	}
 
 	//init context
 	if (!this.gl) {
@@ -78,7 +84,7 @@ function Formant (options) {
 
 	gl.activeTexture(gl.TEXTURE2);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize, this.formants, 0, gl.RGBA, gl.FLOAT, null);
+	this.setFormants(formantsData);
 
 	gl.activeTexture(gl.TEXTURE3);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.noise);
@@ -112,11 +118,93 @@ function Formant (options) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.output, 0);
 
+	//setup shader sources
+	var rectSrc = `
+	attribute vec2 position;
+	void main () {
+		gl_Position = vec4(position, 0, 1);
+	}`;
+
+
+	//generating phase texture of formants data
+	var phaseSrc = `
+	precision ${this.precision} float;
+
+	uniform sampler2D formants;
+	uniform sampler2D noise;
+	uniform sampler2D phase;
+
+	const float width = ${this.blockSize/4}.;
+	const float height = ${this.formants}.;
+	const float sampleRate = ${this.sampleRate}.;
+
+	float getStep (float f) {
+		return f / sampleRate;
+	}
+
+	void main (void) {
+		vec2 coord = floor(gl_FragCoord.xy);
+		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
+
+		float range = 1000.;
+		float lastSample = texture2D(phase, vec2( (width - 0.5) / width, xy.y)).w;
+
+		vec4 sample, formant;
+
+		//512x4 is 4096 — pretty much for buffer, but i < width
+		for (float i = 0.; i < width; i++) {
+			//TODO: read 4 formants
+			formant = texture2D(formants, vec2( i / width, xy.y));
+
+			sample = texture2D(noise, vec2( i / width, xy.y));
+
+			float frequency = 440.;
+
+			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
+			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
+			sample.z = fract( getStep(frequency + sample.z*range - range*0.5) + sample.y);
+			sample.w = fract( getStep(frequency + sample.w*range - range*0.5) + sample.z);
+
+			lastSample = sample.w;
+
+			if (coord.x == i) {
+				gl_FragColor = sample;
+				break;
+			}
+		}
+	}`;
+
+	//sample input phases and merge waveforms, distributing by channels
+	var mergeSrc = `
+	precision ${this.precision} float;
+
+	uniform sampler2D phase;
+	uniform sampler2D source;
+	uniform sampler2D formants;
+
+	const float width = ${this.blockSize/4}.;
+	const float height = ${this.formants}.;
+	const float sampleRate = ${this.sampleRate}.;
+	const float channels = ${this.channels}.;
+
+	void main () {
+		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
+
+		vec4 phaseValue = texture2D(phase, vec2(gl_FragCoord.x / width, 0));
+
+		gl_FragColor = vec4(
+			texture2D(source, vec2(phaseValue.x, 0))[${this.waveform}],
+			texture2D(source, vec2(phaseValue.y, 0))[${this.waveform}],
+			texture2D(source, vec2(phaseValue.z, 0))[${this.waveform}],
+			texture2D(source, vec2(phaseValue.w, 0))[${this.waveform}]
+		);
+	}`;
+
 
 	//init programs
 	this.programs = {
-		phase: createProgram(gl, glslify('./rect.glsl'), glslify('./phase.glsl')),
-		merge: createProgram(gl, glslify('./rect.glsl'), glslify('./merge.glsl'))
+		phase: createProgram(gl, rectSrc, phaseSrc),
+		merge: createProgram(gl, rectSrc, mergeSrc)
 	};
 
 	var buffer = gl.createBuffer();
@@ -139,35 +227,19 @@ function Formant (options) {
 	this.locations.phase.formants = gl.getUniformLocation(this.programs.phase, 'formants');
 	this.locations.phase.noise = gl.getUniformLocation(this.programs.phase, 'noise');
 	this.locations.phase.phase = gl.getUniformLocation(this.programs.phase, 'phase');
-	this.locations.phase.sampleRate = gl.getUniformLocation(this.programs.phase, 'sampleRate');
-	this.locations.phase.width = gl.getUniformLocation(this.programs.phase, 'width');
-	this.locations.phase.height = gl.getUniformLocation(this.programs.phase, 'height');
 
 	this.locations.merge.phase = gl.getUniformLocation(this.programs.merge, 'phase');
 	this.locations.merge.source = gl.getUniformLocation(this.programs.merge, 'source');
 	this.locations.merge.formants = gl.getUniformLocation(this.programs.merge, 'formants');
-	this.locations.merge.sampleRate = gl.getUniformLocation(this.programs.merge, 'sampleRate');
-	this.locations.merge.width = gl.getUniformLocation(this.programs.merge, 'width');
-	this.locations.merge.height = gl.getUniformLocation(this.programs.merge, 'height');
-	this.locations.merge.channels = gl.getUniformLocation(this.programs.merge, 'channels');
-	this.locations.merge.waveform = gl.getUniformLocation(this.programs.merge, 'waveform');
 
 	//bind uniforms
 	gl.useProgram(this.programs.phase);
 	gl.uniform1i(this.locations.phase.formants, 2);
 	gl.uniform1i(this.locations.phase.noise, 3);
-	gl.uniform1f(this.locations.phase.sampleRate, this.sampleRate);
-	gl.uniform1f(this.locations.phase.width, this.blockSize/4);
-	gl.uniform1f(this.locations.phase.height, this.formants);
 
 	gl.useProgram(this.programs.merge);
 	gl.uniform1i(this.locations.merge.formants, 2);
 	gl.uniform1i(this.locations.merge.source, 4);
-	gl.uniform1f(this.locations.merge.sampleRate, this.sampleRate);
-	gl.uniform1f(this.locations.merge.width, this.blockSize/4);
-	gl.uniform1f(this.locations.merge.height, this.formants);
-	gl.uniform1f(this.locations.merge.channels, this.channels);
-	gl.uniform1f(this.locations.merge.waveform, this.waveform);
 
 	//current phase texture being used for rendering/stream
 	this.activePhase = 0;
@@ -211,6 +283,11 @@ Formant.prototype.sourceWidth = 256;
  */
 Formant.prototype.formants = 4;
 
+/**
+ * Precision declarator for formants code
+ */
+Formant.prototype.precision = 'lowp';
+
 
 /**
  * 0 - sine
@@ -228,11 +305,30 @@ Formant.prototype.waveform = 0;
  * Use mostly for demo/test purposes.
  * In production it is faster to render straight to `textures.formants`
  */
-Formant.prototype.setFormants = function (data) {
-	if (data.length/4 !== this.formants) throw Error('Formants data size should correspond to number of formants: ' + this.formants);
+Formant.prototype.setFormants = function (formants) {
+	var gl = this.gl;
+	var data = null;
+	var w = this.blockSize, h = this.formants;
+
+	if (formants) {
+		if (formants.length/4 !== h) throw Error('Formants data size should correspond to number of formants: ' + h);
+
+		data = new Float32Array(w * this.formants * 4);
+
+		//fill rows with formants values
+		for (var j = 0; j < h; j++) {
+			for (var i = 0; i < w; i++) {
+				data[j*w*4 + i*4 + 0] = formants[j*4 + 0];
+				data[j*w*4 + i*4 + 1] = formants[j*4 + 1];
+				data[j*w*4 + i*4 + 2] = formants[j*4 + 2];
+				data[j*w*4 + i*4 + 3] = formants[j*4 + 3];
+			}
+		}
+
+	}
 
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, this.formants, 0, gl.RGBA, gl.FLOAT, data);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, data);
 };
 
 
@@ -241,9 +337,10 @@ Formant.prototype.setFormants = function (data) {
  * Call if feel need to updating noise.
  */
 Formant.prototype.setNoise = function (data) {
+	var w = this.noiseWidht, h = this.noiseHeight;
+	var gl = this.gl;
+
 	if (!data) {
-		var w = this.noiseWidht, h = this.noiseHeight;
-		var gl = this.gl;
 		data = generateNoise(w, h);
 	}
 
@@ -303,7 +400,6 @@ Formant.prototype.populate = function (buffer) {
 	this.activePhase = (this.activePhase + 1) % 2;
 
 	//render phase texture
-	gl.viewport(0,0,this.blockSize/4,this.formants);
 	gl.useProgram(this.programs.phase);
 	gl.uniform1i(this.locations.phase.phase, this.activePhase);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phase[currentPhase]);
@@ -313,7 +409,6 @@ Formant.prototype.populate = function (buffer) {
 	gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phase);
 
 	//sample rendered phases and distribute to channels
-	gl.viewport(0,0,this.blockSize/4,this.channels);
 	gl.useProgram(this.programs.merge);
 	gl.uniform1i(this.locations.merge.phase, currentPhase);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
