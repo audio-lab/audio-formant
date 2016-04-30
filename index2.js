@@ -10,7 +10,7 @@ var createContext = require('webgl-context');
 
 //default buffer size to render (in pixels)
 var width = 512/4;
-var height = 1;
+var height = 512;
 
 //default sample rate
 var sampleRate = 44100;
@@ -217,7 +217,7 @@ function populate (audioBuffer) {
 
 
 	//read main output
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer);
+	gl.readPixels(0, 0, width, 1, gl.RGBA, gl.FLOAT, buffer);
 
 	for (var i = 1; i < audioBuffer.numberOfChannels; i++) {
 		buffers[i].set(buffer);

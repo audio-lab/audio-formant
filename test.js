@@ -26,8 +26,10 @@ test.only('Just draw one slice', function () {
 });
 
 
-test.skip('Performance', function () {
-	var populate = require('./index2.js');
+test.only('Performance', function () {
+	var formant = createFormant({
+	});
+	// var populate = require('./index2.js');
 	//Collect performance metrics to render 1s of a sound.
 
 	//Results
@@ -37,14 +39,18 @@ test.skip('Performance', function () {
 	//This is almost no difference. We get rid of re-setting viewport,
 	//but each render it still checks for whether verteces intersect viewport.
 	//4. A big triangle of seq calc by each fragment ~90ms
+	//almost equal to idle run.
 	//Parallel things are like one longest thing, worry about only lenghten calc
 	//within all parallel threads.
+	//5. For big data sets, like 256+ formants, parallel things seems to start queueing,
+	//so per-pixel handler takes 400ms whereas varyings only 200ms :(
 
+	var arr = new Float32Array(512*4*4);
 	var buf = new AudioBuffer(512);
 
 	test('1s of one sine', function () {
 		for (var i = 0; i < 44100/512; i++) {
-			populate();
+			formant.populate(arr);
 		}
 	});
 });

@@ -12,7 +12,7 @@ var glslify = require('glslify');
 
 //default buffer size to render (in pixels)
 var width = 512/4;
-var height = 1;
+var height = 512;
 
 //number of varyings to use, max - 29
 var VARYINGS = 29;
@@ -526,7 +526,7 @@ function populate (audioBuffer) {
 
 
 	//read main output
-	gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer);
+	gl.readPixels(0, 0, width, 1, gl.RGBA, gl.FLOAT, buffer);
 
 
 	//read left/right buffers
