@@ -11,8 +11,8 @@ test.only('Just draw one slice', function () {
 
 	var buffer = formant.populate();
 
-	// show(buffer.phase, 512, 1);
-	show(buffer, 512, 1);
+	show(buffer.phase, 512, 4);
+	show(buffer, 512, 2);
 
 
 	var buffer2 = formant.populate();
@@ -20,23 +20,13 @@ test.only('Just draw one slice', function () {
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
 	// show(buffer.phase, 512, 1);
-	show(buffer2, 512, 1);
-	showWaveform([].slice.apply(buffer).concat([].slice.apply(buffer2)));
+	showWaveform([].slice.call(buffer, 0, buffer.length/2).concat([].slice.call(buffer2, 0, buffer2.length/2)));
 
-
-	var buffer = formant.populate();
-	show(buffer, 512, 1);
-	// showWaveform(buffer);
-	var buffer = formant.populate();
-	show(buffer, 512, 1);
-	// showWaveform(buffer);
-	var buffer = formant.populate();
-	show(buffer, 512, 1);
-	// showWaveform(buffer);
+	show(buffer2, 512, 2);
 });
 
 
-test('Performance', function () {
+test.skip('Performance', function () {
 	var populate = require('./index2.js');
 	//Collect performance metrics to render 1s of a sound.
 
@@ -54,13 +44,13 @@ test('Performance', function () {
 
 	test('1s of one sine', function () {
 		for (var i = 0; i < 44100/512; i++) {
-			populate(buf);
+			populate();
 		}
 	});
 });
 
 
-test.only('Sound', function () {
+test('Sound', function () {
 	var formant = createFormant();
 
 	Through(function (buffer) {

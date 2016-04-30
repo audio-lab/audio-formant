@@ -17,21 +17,24 @@ var converter = createConverter({
 	channels: 2,
 
 	//sample rate of output audio chunk (optional)
-	sampleRate: 44100
+	sampleRate: 44100,
+
+	//base waveform, 0 - sine (default), 1 - rectangle, 2 - triangle, 3 - saw
+	waveform: 0
 });
 
 
-//set formants — a collection of <frequency, amplitude, panning, quality> tuples
+//set formants — a sequence of <frequency, amplitude, panning, quality> tuples
 converter.setFormants([0,0,1,1, 1,1,0,0]);
 
 //populate floatArray with audio data in planar format
 converter.populate(array?);
 
-//set formant’s source sound, if undefined - sine will be generated
-converter.initSource(data?);
+//set formant’s source waveform, by default - <sine, rect, triangle, saw> generated
+converter.setSource(data?);
 
 //regenerate noise texture
-converter.updateNoise();
+converter.setNoise(data?);
 
 
 //re-render to vary formants data per-sample, faster than `setFormants`
