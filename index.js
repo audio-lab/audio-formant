@@ -274,6 +274,9 @@ function Formant (options) {
 
 	//current phase texture being used for rendering/stream
 	this.activePhase = 0;
+
+	//reusable output array
+	this.outputArray = new Float32Array(this.blockSize * this.channels);
 }
 
 
@@ -426,7 +429,7 @@ Formant.prototype.populate = function (buffer) {
 	var gl = this.gl;
 
 	if (!buffer) {
-		buffer = new Float32Array(this.channels * this.blockSize);
+		buffer = this.outputArray;
 	}
 
 	this.renderPhase();

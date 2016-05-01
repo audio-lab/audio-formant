@@ -113,7 +113,6 @@ _Panning_ param directs output to one of the output channels. It allows for easi
 
 * Formants stream
 * LFO
-*
 
 
 ## Related
