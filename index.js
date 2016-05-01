@@ -1,563 +1,454 @@
 /**
- * To render long buffers we should have:
- * - inner state with the last offset
- * - two shaders ping ponging textures to avoid readpixels
+ * Pipe in formants, pipe out sound duplex stream.
+ * Control the pressure of input formants based on the realtime/offline output stream.
+ * They probably do calculation to current tempo based on number of samples passed.
+ *
+ * @module  formant-stream
  */
 
-
 var createContext = require('webgl-context');
-var createShader = require('gl-shader-core');
-var glslify = require('glslify');
+var extend = require('xtend/mutable');
 
 
-//default buffer size to render (in pixels)
-var width = 512/4;
-var height = 512;
-
-//number of varyings to use, max - 29
-var VARYINGS = 29;
-
-var blocksNumber = width / VARYINGS;
-
-//default sample rate
-var sampleRate = 44100;
-
-var gl = createContext({
-	width: width,
-	height: height
-});
+module.exports = Formant;
 
 
-// micro optimizations
-gl.disable(gl.DEPTH_TEST);
-gl.disable(gl.BLEND);
-gl.disable(gl.CULL_FACE);
-gl.disable(gl.DITHER);
-gl.disable(gl.POLYGON_OFFSET_FILL);
-gl.disable(gl.SAMPLE_COVERAGE);
-gl.disable(gl.SCISSOR_TEST);
-gl.disable(gl.STENCIL_TEST);
-
-gl.lineWidth(1.0);
-
-
-//enable requried extensions
-var float = gl.getExtension('OES_texture_float');
-if (!float) throw Error('WebGL does not support floats.');
-var floatLinear = gl.getExtension('OES_texture_float_linear');
-if (!floatLinear) throw Error('WebGL does not support floats.');
-// var bufs = gl.getExtension('WEBGL_draw_buffers');
-// if (!bufs) throw Error('WebGL does not support floats.');
+//TODO: pack varyings noise uncertainty denser - probably we can pack up to 32 steps into single float of varying, if it is enough 0/1 for our noise. That would be more than enough even for firefox (580 items).
 
 
 
+/**
+ * @constructor
+ */
+function Formant (options) {
+	if (!(this instanceof Formant)) return new Formant(options);
 
-var vSrc = function (isEven, VARYINGS) { return `
-	precision lowp float;
+	extend(this, options);
 
-	//coords of a vertex
-	attribute vec2 position;
-
-	//noise samples
-	uniform sampler2D noise;
-
-	//size of generated noise steps
-	uniform float frequency;
-
-	//variance of generated noise steps
-	uniform float quality;
-
-	//noise accumulator to pick values from the source texture
-	varying vec4 samples[${VARYINGS}];
-
-	//texture of last rendered frame
-	uniform sampler2D lastOutput;
-
-	//return step value for the frequency
-	//step is how many samples we should skip in texture to obtain needed frequency
-	//0 = 0hz, 0.5 = π
-	float getStep (float f) {
-		return f / ${ sampleRate }.;
+	var formantsData;
+	if (Array.isArray(this.formants) || ArrayBuffer.isView(this.formants)) {
+		formantsData = this.formants;
+		this.formants = formantsData.length / 4;
 	}
 
-	//generate samples
-	void main (void) {
+	//init context
+	if (!this.gl) {
+		this.gl = createContext({
+			width: this.width,
+			height: this.height
+		});
+	}
+
+	var gl = this.gl;
+
+	// micro optimizations
+	gl.disable(gl.DEPTH_TEST);
+	gl.disable(gl.BLEND);
+	gl.disable(gl.CULL_FACE);
+	gl.disable(gl.DITHER);
+	gl.disable(gl.POLYGON_OFFSET_FILL);
+	gl.disable(gl.SAMPLE_COVERAGE);
+	gl.disable(gl.SCISSOR_TEST);
+	gl.disable(gl.STENCIL_TEST);
+
+
+	//enable requried extensions
+	var float = gl.getExtension('OES_texture_float');
+	if (!float) throw Error('WebGL does not support floats.');
+	var floatLinear = gl.getExtension('OES_texture_float_linear');
+	if (!floatLinear) throw Error('WebGL does not support floats.');
+
+
+	//init textures
+	this.textures = {
+		formants: createTexture(gl),
+		noise: createTexture(gl),
+		source: createTexture(gl),
+		phases: [createTexture(gl), createTexture(gl)],
+		output: createTexture(gl)
+	};
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[0]);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
+
+	gl.activeTexture(gl.TEXTURE1);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[1]);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
+
+	gl.activeTexture(gl.TEXTURE2);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
+	this.setFormants(formantsData);
+
+	gl.activeTexture(gl.TEXTURE3);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.noise);
+	this.setNoise();
+
+	gl.activeTexture(gl.TEXTURE4);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.source);
+	this.setSource();
+
+	gl.activeTexture(gl.TEXTURE5);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.output);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.channels, 0, gl.RGBA, gl.FLOAT, null);
+
+
+	//init framebuffers
+	this.framebuffers = {
+		//phases are rendered in turn to keep previous state
+		phases: [
+			gl.createFramebuffer(),
+			gl.createFramebuffer()
+		],
+		merge: gl.createFramebuffer()
+	};
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[0], 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[1], 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.output, 0);
+
+	//setup shader sources
+	var rectSrc = `
+	attribute vec2 position;
+	void main () {
 		gl_Position = vec4(position, 0, 1);
+	}`;
 
-		float range = 1000.;
 
-		float lastSample = 0.0;
-		vec4 sample;
+	//generating phase texture of formants data
+	var phaseSrc = `
+	precision ${this.precision} float;
 
-		float someOutputSample = texture2D(lastOutput, vec2(${isEven ? .25 : .75}, 0)).y;
+	uniform sampler2D formants;
+	uniform sampler2D noise;
+	uniform sampler2D phases;
 
-		//FIXME: extra 3 calculations here, for each vertex. Use it.
-		for (int idx = 0; idx < ${VARYINGS}; idx++) {
-			float i = float(idx);
+	const float width = ${this.blockSize/4}.;
+	const float height = ${this.formants}.;
+	const float sampleRate = ${this.sampleRate}.;
+	const float pi2 = ${Math.PI / 2};
 
-			//pick new noise coord from the last output
-			//hope it gets close to random noise coords
-			vec2 coord = texture2D(lastOutput, vec2( someOutputSample + i * 0.571 / ${VARYINGS}., 0)).${isEven ? 'xz': 'wy'};
+	float getStep (float f) {
+		return f / sampleRate;
+	}
 
-			//noise step from last sample
-			sample = texture2D(noise, coord);
+	void main (void) {
+		float left = floor(gl_FragCoord.x);
+		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
+
+		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
+
+		vec4 sample, formant;
+		vec2 coord = xy;
+
+		for (float i = 0.; i < width; i++) {
+			coord.x = i / width;
+
+			vec2 noiseCoord = coord + texture2D(phases, vec2(cos(coord.y + coord.x), sin(coord.x))).yx;
+
+			sample = texture2D(noise, noiseCoord);
+
+			formant = texture2D(formants, coord);
+			float period = formant[0];
+			float quality = formant[2];
+
+			float frequency = period == 0. ? 0. : 1. / period;
+			float range = quality == 0. ? sampleRate : frequency / tan(pi2 * quality);
 
 			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
 			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
 			sample.z = fract( getStep(frequency + sample.z*range - range*0.5) + sample.y);
 			sample.w = fract( getStep(frequency + sample.w*range - range*0.5) + sample.z);
 
-			//save last offset
 			lastSample = sample.w;
 
-			samples[idx] = sample;
+			if (left == i) {
+				gl_FragColor = sample;
+				break;
+			}
 		}
-	}
-`; }
+	}`;
 
-var fSrc = function (isEven, VARYINGS) { return `
-	precision lowp float;
-
-	//noise samples
-	uniform sampler2D noise;
-
-	//FIXME: take texture output
-	//previous values
-	uniform sampler2D prev;
-
-	//amplitude
-	uniform float amplitude;
-
-	//positions to pick from source
-	varying vec4 samples[${VARYINGS}];
-
-	//get generated sample
-	vec4 getSample(int idx) {
-		${Array(VARYINGS).fill(0).map(function (x, i) {
-			return `if (idx == ${i}) return samples[${i}];`;
-		}).join('\n')}
-		return samples[${VARYINGS - 1}];
-	}
-
-	void main (void) {
-		float x = floor(gl_FragCoord.x);
-
-		//relative x coordinate, inner offset within the viewport
-		//inner offset can be more than 29
-		${
-			isEven ?
-			`float innerOffset = mod(x, ${VARYINGS*2}.);` :
-			`float innerOffset = mod(x + ${VARYINGS}., ${VARYINGS*2}.);`
-		}
-
-
-		int idx = int(innerOffset);
-
-		//start block coordinate - outer offset in pixels
-		float start = x - innerOffset;
-
-		//prev block contains offset at the position of current block
-		vec2 offsetCoord = vec2( start / ${width}., 0);
-		float offset = texture2D(prev, offsetCoord).w;
-
-		//get sound source position
-		vec4 pos = fract(getSample(idx) + offset);
-
-		//render 4 waveform samples
-		//FIXME: 3 channels of the source texture are empty
-		//FIXME: y-position of the texture is unused
-
-		//save collected offset
-		gl_FragColor = pos;
-
-	}
-`;}
-
-var vRectSrc = `
-	attribute vec2 position;
-
-	void main () {
-		gl_Position = vec4(position, 0, 1);
-	}
-`;
-
-//even step phase renderer
-var evenProgram = createProgram(gl, vSrc(true, VARYINGS), fSrc(true, VARYINGS));
-
-//odd step phase renderer
-var oddProgram = createProgram(gl, vSrc(false, VARYINGS), fSrc(false, VARYINGS));
-
-//merge phase textures into single texture
-var mergeProgram = createProgram(gl, vRectSrc, `
-	precision lowp float;
-
-	//sampled phases
-	uniform sampler2D even;
-	uniform sampler2D odd;
-
-	bool isEven(float x) {
-		return mod(x, 2.0) == 0.0;
-	}
-
-	void main () {
-		float w = ${width}.;
-		float x = gl_FragCoord.x;
-		float innerOffset = mod(floor(x), ${VARYINGS}.);
-		float outerOffset = floor(floor(x) / ${VARYINGS}.);
-		vec4 phase;
-
-		if (isEven(outerOffset)) {
-			phase = texture2D(even, vec2(x / w, 0));
-		} else {
-			phase = texture2D(odd, vec2(x / w, 0));
-		}
-
-		gl_FragColor = phase;
-	}
-`);
-
-//convert phase texture into a source sound samples
-var sampleProgram = createProgram(gl, vRectSrc, `
-	precision lowp float;
+	//sample input phases and merge waveforms, distributing by channels
+	var mergeSrc = `
+	precision ${this.precision} float;
 
 	uniform sampler2D source;
-	uniform sampler2D phase;
+	uniform sampler2D formants;
+	uniform sampler2D phases;
+
+	const float width = ${this.blockSize/4}.;
+	const float height = ${this.formants}.;
+	const float sampleRate = ${this.sampleRate}.;
+	const int waveform = ${this.waveform};
 
 	void main () {
-		vec4 phaseSamples = texture2D(phase, vec2(gl_FragCoord.x / ${width}., 0));
+		vec4 formant, phase;
+		vec4 sum = vec4(0);
+		vec2 xy;
+		float channel = floor(gl_FragCoord.y);
 
-		gl_FragColor = vec4(
-			texture2D(source, vec2(phaseSamples.x, 0)).x,
-			texture2D(source, vec2(phaseSamples.y, 0)).x,
-			texture2D(source, vec2(phaseSamples.z, 0)).x,
-			texture2D(source, vec2(phaseSamples.w, 0)).x
-		);
-	}
-`);
+		//find max amplitude first to redistribute amplitudes
+		float maxAmplitude = 0.;
+		for (float i = 0.; i < height; i++) {
+			xy = vec2(gl_FragCoord.x / width, i / height);
+			formant = texture2D(formants, xy);
+			float amplitude = formant[1];
 
-//copy the end of phase texture into the beginning of the right one
-var copyProgram = createProgram(gl, vRectSrc, `
-	precision lowp float;
-
-	uniform sampler2D phase;
-
-	void main () {
-		gl_FragColor = texture2D(phase, vec2(${width-1}. / ${width}., 0));
-	}
-`);
-
-
-
-//create input buffer with number of verteces === height
-var buffer = gl.createBuffer();
-var verteces = new Float32Array(createVerteces(blocksNumber, height));
-gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-gl.bufferData(gl.ARRAY_BUFFER, verteces, gl.STATIC_DRAW);
-
-gl.enableVertexAttribArray(1)
-//index, size, type, normalized, stride, offset (pointer)
-gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
-gl.bindAttribLocation(evenProgram, 1, 'position');
-gl.bindAttribLocation(oddProgram, 1, 'position');
-
-function createVerteces (m, n) {
-	var res = [];
-
-	var lastX = -1;
-	var stepX = 2 / m;
-
-	for (var x = 0; x < Math.ceil(m); x++) {
-		var lastY = 1;
-		var stepY = 2 / n;
-		for (var y = 0; y < n; y++) {
-			res.push( lastX );
-			res.push( lastY - stepY*.5 );
-			//should overlap a tiny bit to save offset info
-			res.push( lastX + stepX*1.05 );
-			res.push( lastY - stepY*.5);
-			lastY -= stepY;
+			maxAmplitude = maxAmplitude + amplitude;
 		}
-		lastX += stepX;
+
+		maxAmplitude = max(maxAmplitude, 1.);
+
+		//sum all formant sampled phases regarding current channel and max amplitude
+		for (float i = 0.; i < height; i++) {
+			xy = vec2(gl_FragCoord.x / width, i / height);
+
+			phase = texture2D(phases, xy);
+			formant = texture2D(formants, xy);
+			float amplitude = formant[1] / maxAmplitude;
+			float pan = formant[3];
+			float mix = 1. - min( abs(channel - pan), 1.);
+
+			sum += vec4(
+				texture2D(source, vec2(phase.x, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.y, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.z, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.w, 0))[waveform] * amplitude * mix
+			);
+		}
+
+		gl_FragColor = sum;
+	}`;
+
+
+	//init programs
+	this.programs = {
+		phases: createProgram(gl, rectSrc, phaseSrc),
+		merge: createProgram(gl, rectSrc, mergeSrc)
+	};
+
+	var buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,-1,3,3,-1]), gl.STATIC_DRAW);
+	gl.enableVertexAttribArray(0);
+	gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+	gl.bindAttribLocation(this.programs.phases, 0, 'position');
+	gl.bindAttribLocation(this.programs.merge, 0, 'position');
+
+	gl.linkProgram(this.programs.phases);
+	gl.linkProgram(this.programs.merge);
+
+	//save locations
+	this.locations = {
+		phases: {},
+		merge: {}
+	};
+
+	this.locations.phases.formants = gl.getUniformLocation(this.programs.phases, 'formants');
+	this.locations.phases.noise = gl.getUniformLocation(this.programs.phases, 'noise');
+	this.locations.phases.phases = gl.getUniformLocation(this.programs.phases, 'phases');
+
+	this.locations.merge.phases = gl.getUniformLocation(this.programs.merge, 'phases');
+	this.locations.merge.source = gl.getUniformLocation(this.programs.merge, 'source');
+	this.locations.merge.formants = gl.getUniformLocation(this.programs.merge, 'formants');
+
+	//bind uniforms
+	gl.useProgram(this.programs.phases);
+	gl.uniform1i(this.locations.phases.formants, 2);
+	gl.uniform1i(this.locations.phases.noise, 3);
+
+	gl.useProgram(this.programs.merge);
+	gl.uniform1i(this.locations.merge.formants, 2);
+	gl.uniform1i(this.locations.merge.source, 4);
+
+	//current phase texture being used for rendering/stream
+	this.activePhase = 0;
+}
+
+
+
+/**
+ * Output sample rate
+ */
+Formant.prototype.sampleRate = 44100;
+
+
+/**
+ * Output number of channels
+ */
+Formant.prototype.channels = 2;
+
+
+/**
+ * Output block size
+ */
+Formant.prototype.blockSize = 512;
+
+
+/**
+ * Noise texture dimensions
+ */
+Formant.prototype.noiseWidht = 256;
+Formant.prototype.noiseHeight = 256;
+
+
+/**
+ * Source texture length
+ */
+Formant.prototype.sourceWidth = 256;
+
+
+/**
+ * Number of formants to process
+ */
+Formant.prototype.formants = 4;
+
+/**
+ * Precision declarator for formants code
+ */
+Formant.prototype.precision = 'lowp';
+
+
+/**
+ * 0 - sine
+ * 1 - rectangle
+ * 2 - triangle
+ * 3 - saw
+ */
+Formant.prototype.waveform = 0;
+
+
+
+
+/**
+ * Set formants data.
+ * Use mostly for demo/test purposes.
+ * In production it is faster to render straight to `textures.formants`
+ */
+Formant.prototype.setFormants = function (formants) {
+	var gl = this.gl;
+	var data = null;
+	var w = this.blockSize/4, h = this.formants;
+
+	if (formants) {
+		if (formants.length/4 !== h) throw Error('Formants data size should correspond to number of formants: ' + h);
+
+		data = new Float32Array(w * this.formants * 4);
+
+		//fill rows with formants values
+		for (var j = 0; j < h; j++) {
+			for (var i = 0; i < w; i++) {
+				data[j*w*4 + i*4 + 0] = formants[j*4 + 0];
+				data[j*w*4 + i*4 + 1] = formants[j*4 + 1];
+				data[j*w*4 + i*4 + 2] = formants[j*4 + 2];
+				data[j*w*4 + i*4 + 3] = formants[j*4 + 3];
+			}
+		}
+
 	}
 
-	return res;
-}
-
-//create merging shader a-big-triangle output
-var buffer = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,-1,3,3,-1]), gl.STATIC_DRAW);
-gl.enableVertexAttribArray(2)
-gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
-gl.bindAttribLocation(sampleProgram, 2, 'position');
-gl.bindAttribLocation(mergeProgram, 2, 'position');
-gl.bindAttribLocation(copyProgram, 2, 'position');
-
-
-//relink program after binding attribs
-gl.linkProgram(evenProgram);
-gl.linkProgram(oddProgram);
-gl.linkProgram(mergeProgram);
-gl.linkProgram(copyProgram);
-gl.linkProgram(sampleProgram);
-
-
-
-//create main framebuffers
-var evenFramebuffer = gl.createFramebuffer();
-var oddFramebuffer = gl.createFramebuffer();
-var mergeFramebuffer = gl.createFramebuffer(); //phase merge
-var sampleFramebuffer = gl.createFramebuffer(); //sample phase
-var copyFramebuffer = gl.createFramebuffer(); //copy
-
-
-//create main textures
-var leftTexture = createTexture(gl);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
-
-var rightTexture = createTexture(gl);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
-
-var outputTexture = createTexture(gl);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, new Float32Array(generateNoise(width*height*4)));
-
-var phaseTexture = createTexture(gl);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
-
-
-
-//bind output textures to framebuffers
-gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, leftTexture, 0);
-gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rightTexture, 0);
-gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, phaseTexture, 0);
-gl.bindFramebuffer(gl.FRAMEBUFFER, sampleFramebuffer);
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, outputTexture, 0);
-gl.bindFramebuffer(gl.FRAMEBUFFER, copyFramebuffer);
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rightTexture, 0);
-
-
-//cross-bind outputs to inputs program0 renders to texture1 and vice-versa
-gl.useProgram(evenProgram);
-var prevLocation = gl.getUniformLocation(evenProgram, "prev");
-gl.uniform1i(prevLocation, 1);
-gl.activeTexture(gl.TEXTURE1);
-gl.bindTexture(gl.TEXTURE_2D, rightTexture);
-
-var outputLocation = gl.getUniformLocation(evenProgram, "lastOutput");
-gl.uniform1i(outputLocation, 5);
-gl.activeTexture(gl.TEXTURE5);
-gl.bindTexture(gl.TEXTURE_2D, outputTexture);
-
-gl.useProgram(oddProgram);
-var prevLocation = gl.getUniformLocation(oddProgram, "prev");
-gl.uniform1i(prevLocation, 0);
-gl.activeTexture(gl.TEXTURE0);
-gl.bindTexture(gl.TEXTURE_2D, leftTexture);
-
-var outputLocation = gl.getUniformLocation(oddProgram, "lastOutput");
-gl.uniform1i(outputLocation, 5);
-gl.activeTexture(gl.TEXTURE5);
-gl.bindTexture(gl.TEXTURE_2D, outputTexture);
-
-
-//create and bind noise texture
-//appears that 16x16 is enough for picking randomish noises
-//but for thruthful mean we need more
-gl.useProgram(evenProgram);
-var noiseLocation = gl.getUniformLocation(evenProgram, "noise");
-gl.uniform1i(noiseLocation, 2);
-gl.useProgram(oddProgram);
-var noiseLocation = gl.getUniformLocation(oddProgram, "noise");
-gl.uniform1i(noiseLocation, 2);
-
-gl.activeTexture(gl.TEXTURE2);
-var noiseTexture = createTexture(gl);
-var noise = new Float32Array(generateNoise(256*256*4));
-gl.bindTexture(gl.TEXTURE_2D, noiseTexture);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.FLOAT, noise);
-
-function generateNoise (len) {
-	var res = [];
-	for (var i = 0; i < len; i++) {
-		res.push(Math.random());
-	}
-	return res;
-}
-
-
-//assign merge program inputs
-gl.useProgram(mergeProgram);
-var evenLocation = gl.getUniformLocation(mergeProgram, "even");
-var oddLocation = gl.getUniformLocation(mergeProgram, "odd");
-gl.uniform1i(evenLocation, 0);
-gl.uniform1i(oddLocation, 1);
-gl.activeTexture(gl.TEXTURE0);
-gl.bindTexture(gl.TEXTURE_2D, leftTexture);
-gl.activeTexture(gl.TEXTURE1);
-gl.bindTexture(gl.TEXTURE_2D, rightTexture);
-
-
-
-// create source - a simple sine
-gl.useProgram(sampleProgram);
-var sourceLocation = gl.getUniformLocation(sampleProgram, "source");
-gl.uniform1i(sourceLocation, 3);
-
-var sourceLen = 1024;
-var source = new Float32Array(sourceLen*4);
-for (var i = 0; i < sourceLen; i++) {
-	source[i*4] = Math.sin( i * (Math.PI * 2) / sourceLen);
-	source[i*4 + 1] = Math.sin( i * (Math.PI * 2) / sourceLen);
-	source[i*4 + 2] = Math.sin( i * (Math.PI * 2) / sourceLen);
-	source[i*4 + 3] = Math.sin( i * (Math.PI * 2) / sourceLen);
-}
-gl.activeTexture(gl.TEXTURE3);
-var sourceTexture = createTexture(gl);
-gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 1, 0, gl.RGBA, gl.FLOAT, source);
-
-
-var phaseLocation = gl.getUniformLocation(sampleProgram, "phase");
-gl.uniform1i(phaseLocation, 4);
-gl.activeTexture(gl.TEXTURE4);
-gl.bindTexture(gl.TEXTURE_2D, phaseTexture);
-
-
-
-//bind uniforms
-var locations = {
-	frequency: [],
-	amplitude: [],
-	quality: []
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, data);
 };
 
 
-//setup formant values
-gl.useProgram(evenProgram);
-var frequencyLocation = gl.getUniformLocation(evenProgram, 'frequency');
-var amplitudeLocation = gl.getUniformLocation(evenProgram, 'amplitude');
-var qualityLocation = gl.getUniformLocation(evenProgram, 'quality');
-locations.frequency.push(frequencyLocation);
-locations.amplitude.push(amplitudeLocation);
-locations.quality.push(qualityLocation);
+/**
+ * Update noise texture.
+ * Call if feel need to updating noise.
+ */
+Formant.prototype.setNoise = function (data) {
+	var w = this.noiseWidht, h = this.noiseHeight;
+	var gl = this.gl;
 
-gl.uniform1f(frequencyLocation, 440);
-gl.uniform1f(qualityLocation, 0.93);
+	if (!data) {
+		data = generateNoise(w, h);
+	}
 
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.noise);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, data);
 
-gl.useProgram(oddProgram);
-var frequencyLocation = gl.getUniformLocation(oddProgram, 'frequency');
-var amplitudeLocation = gl.getUniformLocation(oddProgram, 'amplitude');
-var qualityLocation = gl.getUniformLocation(oddProgram, 'quality');
-locations.frequency.push(frequencyLocation);
-locations.amplitude.push(amplitudeLocation);
-locations.quality.push(qualityLocation);
+	return this;
+};
 
-gl.uniform1f(frequencyLocation, 440);
-gl.uniform1f(qualityLocation, 0.93);
-
-
-
-
-
-//bind copy buffer
-gl.useProgram(copyProgram);
-var phaseLocation = gl.getUniformLocation(copyProgram, "phase");
-gl.uniform1i(phaseLocation, 4);
-gl.activeTexture(gl.TEXTURE4);
-gl.bindTexture(gl.TEXTURE_2D, phaseTexture);
-
-
-
-
-var count = 0;
 
 /**
- * Main package function.
- * Populates passed buffer with generated data.
- *
- * @param {Array} buffer An array to fill with data
- * @param {Array} soundprint A data for the sound
+ * Fill source texture with values of data,
+ * or sine if data is omitted
  */
-function populate (audioBuffer) {
-	//TODO: render into 2-row buffer, each row for a channel, then just set audiobuffer channels
+Formant.prototype.setSource = function (data) {
+	var gl = this.gl;
 
-	var buffers = [];
-	for (var i = 0; i < audioBuffer.numberOfChannels; i++) {
-		buffers[i] = audioBuffer.getChannelData(i);
+	if (!data) {
+		var sourceLen = this.sourceWidth*4;
+		data = new Float32Array(sourceLen);
+		var half = this.sourceWidth/2;
+
+		for (var i = 0; i < this.sourceWidth; i++) {
+			//sin
+			data[i*4] = Math.sin( i * (Math.PI * 2) / this.sourceWidth);
+			//rect
+			data[i*4+1] = i < half ? 1 : -1;
+			//triangle
+			data[i*4+2] = i < half ? 1 - 2 * i / half : -1 + 2 * (i - half) / half;
+			//saw
+			data[i*4+3] = 1 - 2 * i / this.sourceWidth;
+		}
 	}
-	buffer = buffers[0];
-
-
-	//copy phase into right channel before rendering
-	// gl.viewport(0, 0, 3, height);
-	gl.useProgram(copyProgram);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, copyFramebuffer);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
-	// gl.viewport(0, 0, width, height);
-
-
-	//active even or odd program
-	var even = true;
-
-	for (var block = 0; block < blocksNumber; block++) {
-		gl.useProgram(even ? evenProgram : oddProgram);
-		gl.bindFramebuffer(gl.FRAMEBUFFER, even ? evenFramebuffer : oddFramebuffer);
-		gl.drawArrays(gl.LINES, block * 2 * height, 2);
-		// showRendered(block, even ? 0 : 1);
-		even = !even;
+	else {
+		sourceLen = data.length;
 	}
 
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.source);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.sourceWidth, 1, 0, gl.RGBA, gl.FLOAT, data);
 
-	//switch to merging program
-	gl.useProgram(mergeProgram);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, buffer.phase);
-
-
-	//switch to sampling program
-	gl.useProgram(sampleProgram);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, sampleFramebuffer);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
+	return this;
+};
 
 
-	//read main output
-	gl.readPixels(0, 0, width, 1, gl.RGBA, gl.FLOAT, buffer);
+/**
+ * Populates passed buffer with audio data separated by channels.
+ * If buffer is undefined - a new one will be created
+ */
+Formant.prototype.populate = function (buffer) {
+	var gl = this.gl;
 
-
-	//read left/right buffers
-	// audioBuffer.left = new Float32Array(buffer.length);
-	// audioBuffer.right = new Float32Array(buffer.length);
-	// gl.bindFramebuffer(gl.FRAMEBUFFER, evenFramebuffer);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.left);
-	// gl.bindFramebuffer(gl.FRAMEBUFFER, oddFramebuffer);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.right);
-
-	// audioBuffer.phase = new Float32Array(buffer.length);
-	// gl.bindFramebuffer(gl.FRAMEBUFFER, mergeFramebuffer);
-	// gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, audioBuffer.phase);
-
-
-	count++;
-
-	for (var i = 1; i < audioBuffer.numberOfChannels; i++) {
-		buffers[i].set(buffer);
+	if (!buffer) {
+		buffer = new Float32Array(this.channels * this.blockSize);
 	}
 
-	return audioBuffer;
-}
+	var currentPhase = this.activePhase;
+	this.activePhase = (this.activePhase + 1) % 2;
+
+	//render phase texture
+	gl.useProgram(this.programs.phases);
+	gl.uniform1i(this.locations.phases.phases, this.activePhase);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[currentPhase]);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+	// buffer.phases = new Float32Array(this.formants * this.blockSize);
+	// gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phases);
+
+	//sample rendered phases and distribute to channels
+	gl.useProgram(this.programs.merge);
+	gl.uniform1i(this.locations.merge.phases, currentPhase);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+	gl.readPixels(0, 0, this.blockSize/4, this.channels, gl.RGBA, gl.FLOAT, buffer);
+
+	return buffer;
+};
 
 
-module.exports = populate;
 
 
-
-
-//program (2 shaders)
+//create program (2 shaders)
 function createProgram (gl, vSrc, fSrc) {
 	var fShader = gl.createShader(gl.FRAGMENT_SHADER);
 	var vShader = gl.createShader(gl.VERTEX_SHADER);
@@ -592,9 +483,11 @@ function createProgram (gl, vSrc, fSrc) {
 	return program;
 }
 
-
+//create texture
 function createTexture (gl) {
 	var texture = gl.createTexture();
+
+	gl.activeTexture(gl.TEXTURE2);
 
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -604,3 +497,25 @@ function createTexture (gl) {
 
 	return texture;
 }
+
+/**
+ * Initialize additive noise textures.
+ */
+//TODO: optimize this part, too many things can be done in parallel
+function generateNoise (w, h) {
+	var data = new Float32Array(w*h*4);
+
+	for (var j = 0; j < h; j++) {
+		var prev = 0;
+
+		//fill rows with random sequence of phase
+		for (var i = 0; i < w; i++) {
+			prev = data[j*w*4 + i*4] = (prev + Math.random()) % 1;
+			prev = data[j*w*4 + i*4+1] = (prev + Math.random()) % 1;
+			prev = data[j*w*4 + i*4+2] = (prev + Math.random()) % 1;
+			prev = data[j*w*4 + i*4+3] = (prev + Math.random()) % 1;
+		}
+	}
+
+	return data;
+};
