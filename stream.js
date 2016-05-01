@@ -180,9 +180,9 @@ function Formant (options) {
 	var mergeSrc = `
 	precision ${this.precision} float;
 
-	uniform sampler2D phase;
 	uniform sampler2D source;
 	uniform sampler2D formants;
+	uniform sampler2D phase;
 
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
@@ -194,12 +194,14 @@ function Formant (options) {
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
 		vec4 phaseValue = texture2D(phase, vec2(gl_FragCoord.x / width, 0));
+		vec4 formant = texture2D(formants, xy);
+		float amplitude = formant[1];
 
 		gl_FragColor = vec4(
-			texture2D(source, vec2(phaseValue.x, 0))[waveform],
-			texture2D(source, vec2(phaseValue.y, 0))[waveform],
-			texture2D(source, vec2(phaseValue.z, 0))[waveform],
-			texture2D(source, vec2(phaseValue.w, 0))[waveform]
+			texture2D(source, vec2(phaseValue.x, 0))[waveform] * amplitude,
+			texture2D(source, vec2(phaseValue.y, 0))[waveform] * amplitude,
+			texture2D(source, vec2(phaseValue.z, 0))[waveform] * amplitude,
+			texture2D(source, vec2(phaseValue.w, 0))[waveform] * amplitude
 		);
 	}`;
 
