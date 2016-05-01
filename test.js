@@ -33,6 +33,7 @@ test('Just draw one slice', function () {
 
 test('Performance', function () {
 	var formant = createFormant({
+		formants: 32
 	});
 	// var populate = require('./index2.js');
 	//Collect performance metrics to render 1s of a sound.

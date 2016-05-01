@@ -13,13 +13,7 @@ var extend = require('xtend/mutable');
 module.exports = Formant;
 
 
-//TODO: render channels to 2-row output.
-//TODO: do averaging in shader, merging multiple sines
-//TODO: use drawElements to reference existing vertex coords instead. That is tiny-piny but optimization, esp for large number of rows.
-//TODO: set sound source sprite, set fractions for basic sources. Do not expect source texture be repeating, repeat manually.
-//TODO: optimization: put 0 or 1 quality values to big-chunks processing (no need to calc sequences for them)
-//TODO: cache noise sequences to avoid varyings chunking
-
+//TODO: pack varyings noise uncertainty denser - probably we can pack up to 32 steps into single float of varying, if it is enough 0/1 for our noise. That would be more than enough even for firefox (580 items).
 
 
 
