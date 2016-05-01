@@ -195,7 +195,7 @@ function Formant (options) {
 		vec4 formant, phase;
 		vec4 sum = vec4(0);
 		vec2 xy;
-		float channel = gl_FragCoord.y;
+		float channel = floor(gl_FragCoord.y);
 
 		//find max amplitude first to redistribute amplitudes
 		float maxAmplitude = 0.;
@@ -203,12 +203,13 @@ function Formant (options) {
 			xy = vec2(gl_FragCoord.x / width, i / height);
 			formant = texture2D(formants, xy);
 			float amplitude = formant[1];
+
 			maxAmplitude = maxAmplitude + amplitude;
 		}
 
 		maxAmplitude = max(maxAmplitude, 1.);
 
-		//sum all formant sampled phases regarding current channel
+		//sum all formant sampled phases regarding current channel and max amplitude
 		for (float i = 0.; i < height; i++) {
 			xy = vec2(gl_FragCoord.x / width, i / height);
 
@@ -216,12 +217,13 @@ function Formant (options) {
 			formant = texture2D(formants, xy);
 			float amplitude = formant[1] / maxAmplitude;
 			float pan = formant[3];
+			float mix = 1. - min( abs(channel - pan), 1.);
 
 			sum += vec4(
-				texture2D(source, vec2(phase.x, 0))[waveform] * amplitude,
-				texture2D(source, vec2(phase.y, 0))[waveform] * amplitude,
-				texture2D(source, vec2(phase.z, 0))[waveform] * amplitude,
-				texture2D(source, vec2(phase.w, 0))[waveform] * amplitude
+				texture2D(source, vec2(phase.x, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.y, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.z, 0))[waveform] * amplitude * mix,
+				texture2D(source, vec2(phase.w, 0))[waveform] * amplitude * mix
 			);
 		}
 
