@@ -8,12 +8,12 @@ var createFormant = require('./stream.js');
 
 test.only('Just draw one slice', function () {
 	var formant = createFormant({
-		formants: [1/220,.5,0.5,0, 1/440,.5,0,0, 1/880,0,0,0, 0.5/440,0,0,0]
+		formants: [1/220,0.5,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0]
 	});
 
 	var buffer = formant.populate();
 
-	show(buffer.phase, 512, 4);
+	show(buffer.phases, 512, 4);
 	show(buffer, 512, 2);
 
 

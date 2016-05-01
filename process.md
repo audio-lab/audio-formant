@@ -1,3 +1,6 @@
+## Q: how do we complete marging?
+* Try assessing amplitude and distributing it proportinally on all formants.
+
 ## Q: how do we store frequency?
 
 * Normalized units (f / sample) are nice, but for hearing range they focus in 0..01 range, and others are senseless. Also it depends on sampleRate, which makes impossible to safely change samplerate.

@@ -70,16 +70,16 @@ function Formant (options) {
 		formants: createTexture(gl),
 		noise: createTexture(gl),
 		source: createTexture(gl),
-		phase: [createTexture(gl), createTexture(gl)],
+		phases: [createTexture(gl), createTexture(gl)],
 		output: createTexture(gl)
 	};
 
 	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, this.textures.phase[0]);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[0]);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
 
 	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, this.textures.phase[1]);
+	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[1]);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
 
 	gl.activeTexture(gl.TEXTURE2);
@@ -102,18 +102,18 @@ function Formant (options) {
 	//init framebuffers
 	this.framebuffers = {
 		//phases are rendered in turn to keep previous state
-		phase: [
+		phases: [
 			gl.createFramebuffer(),
 			gl.createFramebuffer()
 		],
 		merge: gl.createFramebuffer()
 	};
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phase[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phase[0], 0);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[0], 0);
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phase[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phase[1], 0);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[1], 0);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.output, 0);
@@ -132,7 +132,7 @@ function Formant (options) {
 
 	uniform sampler2D formants;
 	uniform sampler2D noise;
-	uniform sampler2D phase;
+	uniform sampler2D phases;
 
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
@@ -147,7 +147,7 @@ function Formant (options) {
 		float left = floor(gl_FragCoord.x);
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
-		float lastSample = texture2D(phase, vec2( (width - 0.5) / width, xy.y)).w;
+		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
 
 		vec4 sample, formant;
 		vec2 coord = vec2(xy);
@@ -155,12 +155,14 @@ function Formant (options) {
 		for (float i = 0.; i < width; i++) {
 			coord.x = i / width;
 
-			formant = texture2D(formants, coord);
-
 			sample = texture2D(noise, coord);
 
-			float frequency = 1. / formant[0];
-			float range = frequency / tan(pi2 * formant[2]);
+			formant = texture2D(formants, coord);
+			float period = formant[0];
+			float quality = formant[2];
+
+			float frequency = period == 0. ? 0. : 1. / period;
+			float range = quality == 0. ? sampleRate : frequency / tan(pi2 * quality);
 
 			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
 			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
@@ -182,33 +184,54 @@ function Formant (options) {
 
 	uniform sampler2D source;
 	uniform sampler2D formants;
-	uniform sampler2D phase;
+	uniform sampler2D phases;
 
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
 	const float sampleRate = ${this.sampleRate}.;
-	const float channels = ${this.channels}.;
 	const int waveform = ${this.waveform};
 
 	void main () {
-		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
+		vec4 formant, phase;
+		vec4 sum = vec4(0);
+		vec2 xy;
+		float channel = gl_FragCoord.y;
 
-		vec4 phaseValue = texture2D(phase, vec2(gl_FragCoord.x / width, 0));
-		vec4 formant = texture2D(formants, xy);
-		float amplitude = formant[1];
+		//find max amplitude first to redistribute amplitudes
+		float maxAmplitude = 0.;
+		for (float i = 0.; i < height; i++) {
+			xy = vec2(gl_FragCoord.x / width, i / height);
+			formant = texture2D(formants, xy);
+			float amplitude = formant[1];
+			maxAmplitude = maxAmplitude + amplitude;
+		}
 
-		gl_FragColor = vec4(
-			texture2D(source, vec2(phaseValue.x, 0))[waveform] * amplitude,
-			texture2D(source, vec2(phaseValue.y, 0))[waveform] * amplitude,
-			texture2D(source, vec2(phaseValue.z, 0))[waveform] * amplitude,
-			texture2D(source, vec2(phaseValue.w, 0))[waveform] * amplitude
-		);
+		maxAmplitude = max(maxAmplitude, 1.);
+
+		//sum all formant sampled phases regarding current channel
+		for (float i = 0.; i < height; i++) {
+			xy = vec2(gl_FragCoord.x / width, i / height);
+
+			phase = texture2D(phases, xy);
+			formant = texture2D(formants, xy);
+			float amplitude = formant[1] / maxAmplitude;
+			float pan = formant[3];
+
+			sum += vec4(
+				texture2D(source, vec2(phase.x, 0))[waveform] * amplitude,
+				texture2D(source, vec2(phase.y, 0))[waveform] * amplitude,
+				texture2D(source, vec2(phase.z, 0))[waveform] * amplitude,
+				texture2D(source, vec2(phase.w, 0))[waveform] * amplitude
+			);
+		}
+
+		gl_FragColor = sum;
 	}`;
 
 
 	//init programs
 	this.programs = {
-		phase: createProgram(gl, rectSrc, phaseSrc),
+		phases: createProgram(gl, rectSrc, phaseSrc),
 		merge: createProgram(gl, rectSrc, mergeSrc)
 	};
 
@@ -217,30 +240,30 @@ function Formant (options) {
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,-1,3,3,-1]), gl.STATIC_DRAW);
 	gl.enableVertexAttribArray(0);
 	gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-	gl.bindAttribLocation(this.programs.phase, 0, 'position');
+	gl.bindAttribLocation(this.programs.phases, 0, 'position');
 	gl.bindAttribLocation(this.programs.merge, 0, 'position');
 
-	gl.linkProgram(this.programs.phase);
+	gl.linkProgram(this.programs.phases);
 	gl.linkProgram(this.programs.merge);
 
 	//save locations
 	this.locations = {
-		phase: {},
+		phases: {},
 		merge: {}
 	};
 
-	this.locations.phase.formants = gl.getUniformLocation(this.programs.phase, 'formants');
-	this.locations.phase.noise = gl.getUniformLocation(this.programs.phase, 'noise');
-	this.locations.phase.phase = gl.getUniformLocation(this.programs.phase, 'phase');
+	this.locations.phases.formants = gl.getUniformLocation(this.programs.phases, 'formants');
+	this.locations.phases.noise = gl.getUniformLocation(this.programs.phases, 'noise');
+	this.locations.phases.phases = gl.getUniformLocation(this.programs.phases, 'phases');
 
-	this.locations.merge.phase = gl.getUniformLocation(this.programs.merge, 'phase');
+	this.locations.merge.phases = gl.getUniformLocation(this.programs.merge, 'phases');
 	this.locations.merge.source = gl.getUniformLocation(this.programs.merge, 'source');
 	this.locations.merge.formants = gl.getUniformLocation(this.programs.merge, 'formants');
 
 	//bind uniforms
-	gl.useProgram(this.programs.phase);
-	gl.uniform1i(this.locations.phase.formants, 2);
-	gl.uniform1i(this.locations.phase.noise, 3);
+	gl.useProgram(this.programs.phases);
+	gl.uniform1i(this.locations.phases.formants, 2);
+	gl.uniform1i(this.locations.phases.noise, 3);
 
 	gl.useProgram(this.programs.merge);
 	gl.uniform1i(this.locations.merge.formants, 2);
@@ -405,17 +428,17 @@ Formant.prototype.populate = function (buffer) {
 	this.activePhase = (this.activePhase + 1) % 2;
 
 	//render phase texture
-	gl.useProgram(this.programs.phase);
-	gl.uniform1i(this.locations.phase.phase, this.activePhase);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phase[currentPhase]);
+	gl.useProgram(this.programs.phases);
+	gl.uniform1i(this.locations.phases.phases, this.activePhase);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[currentPhase]);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-	buffer.phase = new Float32Array(this.formants * this.blockSize);
-	gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phase);
+	buffer.phases = new Float32Array(this.formants * this.blockSize);
+	gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phases);
 
 	//sample rendered phases and distribute to channels
 	gl.useProgram(this.programs.merge);
-	gl.uniform1i(this.locations.merge.phase, currentPhase);
+	gl.uniform1i(this.locations.merge.phases, currentPhase);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 

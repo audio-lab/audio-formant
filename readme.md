@@ -27,7 +27,7 @@ var converter = createConverter({
 //populate floatArray with audio data in planar format
 converter.populate(array?);
 
-//set formants — a sequence of <period, quality, amplitude, panning> tuples
+//set formants — a sequence of <period, intensity, quality, panning> tuples
 converter.setFormants([0,0,1,1, 1,1,0,0]);
 
 //set formant’s source waveform, by default - <sine, rect, triangle, saw> generated
