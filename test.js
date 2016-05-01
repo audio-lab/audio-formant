@@ -8,8 +8,8 @@ var createFormant = require('./');
 
 test('Just draw one slice', function () {
 	var formant = createFormant({
-		formants: [1/440, 1, 0.1, 0],//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0],
-		waveform: 3
+		formants: [1/440, 1, 0.2, 0],//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0],
+		waveform: 0
 	});
 
 	var buffer = formant.populate();
@@ -32,41 +32,10 @@ test('Just draw one slice', function () {
 });
 
 
-test('Performance', function () {
-	var formant = createFormant({
-		formants: 32
-	});
-	// var populate = require('./index2.js');
-	//Collect performance metrics to render 1s of a sound.
-
-	//Results
-	//1. Triangle verteces, viewport shift ~130ms
-	//2. Line verteces, viewport shift ~130ms
-	//3. Line verteces, drawArrays subsetting ~120ms
-	//This is almost no difference. We get rid of re-setting viewport,
-	//but each render it still checks for whether verteces intersect viewport.
-	//4. A big triangle of seq calc by each fragment ~90ms
-	//almost equal to idle run.
-	//Parallel things are like one longest thing, worry about only lenghten calc
-	//within all parallel threads.
-	//5. For big data sets, like 256+ formants, parallel things seems to start queueing,
-	//so per-pixel handler takes 400ms whereas varyings only 200ms :(
-
-	var arr = new Float32Array(512*4*4);
-	var buf = new AudioBuffer(512);
-
-	test('1s of one sine', function () {
-		for (var i = 0; i < 44100/512; i++) {
-			formant.populate(arr);
-		}
-	});
-});
-
-
 test('Sound', function () {
 	var formant = createFormant({
 		formants: [
-			1/440,1,0.1,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
+			1/440,1,0.9,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
 		],
 		waveform: 0
 	});
@@ -100,6 +69,37 @@ test('Sound', function () {
 	}));
 });
 
+
+
+test('Performance', function () {
+	var formant = createFormant({
+		formants: 32
+	});
+	// var populate = require('./index2.js');
+	//Collect performance metrics to render 1s of a sound.
+
+	//Results
+	//1. Triangle verteces, viewport shift ~130ms
+	//2. Line verteces, viewport shift ~130ms
+	//3. Line verteces, drawArrays subsetting ~120ms
+	//This is almost no difference. We get rid of re-setting viewport,
+	//but each render it still checks for whether verteces intersect viewport.
+	//4. A big triangle of seq calc by each fragment ~90ms
+	//almost equal to idle run.
+	//Parallel things are like one longest thing, worry about only lenghten calc
+	//within all parallel threads.
+	//5. For big data sets, like 256+ formants, parallel things seems to start queueing,
+	//so per-pixel handler takes 400ms whereas varyings only 200ms :(
+
+	var arr = new Float32Array(512*4*4);
+	var buf = new AudioBuffer(512);
+
+	test('1s of one sine', function () {
+		for (var i = 0; i < 44100/512; i++) {
+			formant.populate(arr);
+		}
+	});
+});
 
 
 function show (pixels, w, h) {

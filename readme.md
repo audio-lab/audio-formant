@@ -52,7 +52,7 @@ converter.textures.source;
 
 First off, there is a couple of [definitions of formant in wikipedia](https://en.wikipedia.org/wiki/Formant). Here is opinionated concept of formant.
 
->TODO: image, image, image
+>TODO: image
 
 Formant is a primitive able to describe atomic signal oscillation in terms of _frequency_, _intensity_ and _quality_. The concept is extension of [phasor](https://en.wikipedia.org/wiki/Phasor) with uncertainty parameter. Formant introduces continous scale covering signal forms between white noise and pure oscillation.
 

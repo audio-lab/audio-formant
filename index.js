@@ -14,7 +14,7 @@ module.exports = Formant;
 
 
 //TODO: pack varyings noise uncertainty denser - probably we can pack up to 32 steps into single float of varying, if it is enough 0/1 for our noise. That would be more than enough even for firefox (580 items).
-//TODO: get rid of if's
+//TODO: get rid of if's - see above method.
 
 
 /**
@@ -134,16 +134,12 @@ function Formant (options) {
 	const float fs = ${this.sampleRate/2}.;
 	const float pi2 = ${Math.PI / 2};
 
-	float getStep (float f) {
-		return f / sampleRate;
-	}
-
 	void main (void) {
 		float left = floor(gl_FragCoord.x);
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
 		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
-		float step;
+		float phaseStep;
 
 		vec4 sample, formant;
 		vec2 coord = xy;
@@ -153,7 +149,8 @@ function Formant (options) {
 
 			vec2 noiseCoord = coord + texture2D(phases, vec2(cos(coord.y + coord.x), sin(coord.x))).yx;
 
-			sample = texture2D(noise, noiseCoord);
+			sample = step(0.5, texture2D(noise, noiseCoord));
+			// sample = texture2D(noise, noiseCoord);
 
 			formant = texture2D(formants, coord);
 			float period = formant[0];
@@ -162,17 +159,17 @@ function Formant (options) {
 			float frequency = clamp(1. / period, 0., fs);
 			float range = clamp(frequency / tan(pi2 * quality), 0., fs);
 
-			step = getStep(frequency + sample.x*range - range*0.5);
-			sample.x = fract( step + lastSample);
+			phaseStep = (frequency + sample.x*range - range*0.5) / sampleRate;
+			sample.x = fract( phaseStep + lastSample);
 
-			step = getStep(frequency + sample.y*range - range*0.5);
-			sample.y = fract( step + sample.x);
+			phaseStep = (frequency + sample.y*range - range*0.5) / sampleRate;
+			sample.y = fract( phaseStep + sample.x);
 
-			step = getStep(frequency + sample.z*range - range*0.5);
-			sample.z = fract( step + sample.y);
+			phaseStep = (frequency + sample.z*range - range*0.5) / sampleRate;
+			sample.z = fract( phaseStep + sample.y);
 
-			step = getStep(frequency + sample.w*range - range*0.5);
-			sample.w = fract( step + sample.z);
+			phaseStep = (frequency + sample.w*range - range*0.5) / sampleRate;
+			sample.w = fract( phaseStep + sample.z);
 
 			lastSample = sample.w;
 
@@ -363,6 +360,8 @@ Formant.prototype.setFormants = function (formants) {
 
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, data);
+
+	return this;
 };
 
 
@@ -430,27 +429,45 @@ Formant.prototype.populate = function (buffer) {
 		buffer = new Float32Array(this.channels * this.blockSize);
 	}
 
-	var currentPhase = this.activePhase;
-	this.activePhase = (this.activePhase + 1) % 2;
-
-	//render phase texture
-	gl.useProgram(this.programs.phases);
-	gl.uniform1i(this.locations.phases.phases, this.activePhase);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[currentPhase]);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-	// buffer.phases = new Float32Array(this.formants * this.blockSize);
-	// gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phases);
-
-	//sample rendered phases and distribute to channels
-	gl.useProgram(this.programs.merge);
-	gl.uniform1i(this.locations.merge.phases, currentPhase);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
+	this.renderPhase();
+	this.renderOutput();
 
 	gl.readPixels(0, 0, this.blockSize/4, this.channels, gl.RGBA, gl.FLOAT, buffer);
 
 	return buffer;
+};
+
+
+/**
+ * Render phase texture
+ */
+Formant.prototype.renderPhase = function () {
+	var gl = this.gl;
+
+	var prevPhase = this.activePhase;
+	this.activePhase = (this.activePhase + 1) % 2;
+
+	gl.useProgram(this.programs.phases);
+	gl.uniform1i(this.locations.phases.phases, prevPhase);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[this.activePhase]);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+	return this;
+};
+
+
+/**
+ * Sample rendered phases and distribute to channels
+ */
+Formant.prototype.renderOutput = function () {
+	var gl = this.gl;
+
+	gl.useProgram(this.programs.merge);
+	gl.uniform1i(this.locations.merge.phases, this.activePhase);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
+	gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+	return this;
 };
 
 
