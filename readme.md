@@ -109,6 +109,12 @@ _Quality_ is [Q factor](https://en.wikipedia.org/wiki/Q_factor) normalized to ra
 
 _Panning_ param directs output to one of the output channels. It allows for easily implementing any number of audio channels. Also it is natural concept known to every sound producer.
 
+## Applications
+
+* Formants stream
+* LFO
+*
+
 
 ## Related
 

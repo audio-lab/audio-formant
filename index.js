@@ -14,7 +14,7 @@ module.exports = Formant;
 
 
 //TODO: pack varyings noise uncertainty denser - probably we can pack up to 32 steps into single float of varying, if it is enough 0/1 for our noise. That would be more than enough even for firefox (580 items).
-
+//TODO: get rid of if's
 
 
 /**
@@ -131,6 +131,7 @@ function Formant (options) {
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
 	const float sampleRate = ${this.sampleRate}.;
+	const float fs = ${this.sampleRate/2}.;
 	const float pi2 = ${Math.PI / 2};
 
 	float getStep (float f) {
@@ -142,6 +143,7 @@ function Formant (options) {
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
 		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
+		float step, overstep = 0.;
 
 		vec4 sample, formant;
 		vec2 coord = xy;
@@ -157,13 +159,29 @@ function Formant (options) {
 			float period = formant[0];
 			float quality = formant[2];
 
-			float frequency = period == 0. ? 0. : 1. / period;
-			float range = quality == 0. ? sampleRate : frequency / tan(pi2 * quality);
+			float frequency = clamp(1. / period, 0., fs);
+			float range = clamp(frequency / tan(pi2 * quality), 0., fs);
 
-			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
-			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
-			sample.z = fract( getStep(frequency + sample.z*range - range*0.5) + sample.y);
-			sample.w = fract( getStep(frequency + sample.w*range - range*0.5) + sample.z);
+			//walk 4 steps
+			step = getStep(frequency + sample.x*range - range*0.5);// + overstep;
+			overstep = min(0., step);
+			step = max(0., step) + overstep;
+			sample.x = fract( step + lastSample);
+
+			step = getStep(frequency + sample.y*range - range*0.5);// + overstep;
+			overstep = min(0., step);
+			step = max(0., step) + overstep;
+			sample.y = fract( step + sample.x);
+
+			step = getStep(frequency + sample.z*range - range*0.5);// + overstep;
+			overstep = min(0., step);
+			step = max(0., step) + overstep;
+			sample.z = fract( step + sample.y);
+
+			step = getStep(frequency + sample.w*range - range*0.5);// + overstep;
+			overstep = min(0., step);
+			step = max(0., step) + overstep;
+			sample.w = fract( step + sample.z);
 
 			lastSample = sample.w;
 

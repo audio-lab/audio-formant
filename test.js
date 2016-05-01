@@ -3,12 +3,13 @@ var Speaker = require('audio-speaker');
 var Through = require('audio-through');
 var AudioBuffer = require('audio-buffer');
 var util = require('audio-buffer-utils');
-var createFormant = require('./stream.js');
+var createFormant = require('./');
 
 
 test('Just draw one slice', function () {
 	var formant = createFormant({
-		formants: [1/440, 1, 0.5, 0]//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0]
+		formants: [1/440, 1, 0.1, 0],//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0],
+		waveform: 3
 	});
 
 	var buffer = formant.populate();
@@ -65,16 +66,14 @@ test('Performance', function () {
 test('Sound', function () {
 	var formant = createFormant({
 		formants: [
-			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
-			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
-			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
-			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
-		]
+			1/440,1,0.1,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
+		],
+		waveform: 0
 	});
 
 	var last = 0;
 	Through(function (buffer) {
-		if (this.frame > 20) return null;
+		// if (this.frame > 20) return null;
 
 		var res = formant.populate();
 		var half = res.length / 2;
