@@ -137,6 +137,7 @@ function Formant (options) {
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
 	const float sampleRate = ${this.sampleRate}.;
+	const float pi2 = ${Math.PI / 2};
 
 	float getStep (float f) {
 		return f / sampleRate;
@@ -146,7 +147,6 @@ function Formant (options) {
 		float left = floor(gl_FragCoord.x);
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
-		float range = 1000.;
 		float lastSample = texture2D(phase, vec2( (width - 0.5) / width, xy.y)).w;
 
 		vec4 sample, formant;
@@ -160,6 +160,7 @@ function Formant (options) {
 			sample = texture2D(noise, coord);
 
 			float frequency = 1. / formant[0];
+			float range = frequency / tan(pi2 * formant[2]);
 
 			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
 			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
@@ -187,6 +188,7 @@ function Formant (options) {
 	const float height = ${this.formants}.;
 	const float sampleRate = ${this.sampleRate}.;
 	const float channels = ${this.channels}.;
+	const int waveform = ${this.waveform};
 
 	void main () {
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
@@ -194,10 +196,10 @@ function Formant (options) {
 		vec4 phaseValue = texture2D(phase, vec2(gl_FragCoord.x / width, 0));
 
 		gl_FragColor = vec4(
-			texture2D(source, vec2(phaseValue.x, 0))[${this.waveform}],
-			texture2D(source, vec2(phaseValue.y, 0))[${this.waveform}],
-			texture2D(source, vec2(phaseValue.z, 0))[${this.waveform}],
-			texture2D(source, vec2(phaseValue.w, 0))[${this.waveform}]
+			texture2D(source, vec2(phaseValue.x, 0))[waveform],
+			texture2D(source, vec2(phaseValue.y, 0))[waveform],
+			texture2D(source, vec2(phaseValue.z, 0))[waveform],
+			texture2D(source, vec2(phaseValue.w, 0))[waveform]
 		);
 	}`;
 
