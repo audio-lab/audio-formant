@@ -52,6 +52,8 @@ converter.textures.source;
 
 First off, there is a couple of [definitions of formant in wikipedia](https://en.wikipedia.org/wiki/Formant). Here is opinionated concept of formant.
 
+>TODO: image, image, image
+
 Formant is a primitive able to describe atomic signal oscillation in terms of _frequency_, _intensity_ and _quality_. The concept is extension of [phasor](https://en.wikipedia.org/wiki/Phasor) with uncertainty parameter. Formant introduces continous scale covering signal forms between white noise and pure oscillation.
 
 The idea hails from [HSL color model](https://en.wikipedia.org/wiki/HSL_and_HSV) applied to sound, where hue is frequency, saturation is quality and lightness is intensity.
@@ -70,7 +72,7 @@ Formants enable for a more natural way to understand and speak of sound, from mu
 
 ## What is the method?
 
-[Experiments](https://github.com/dfcreative/sound-experiment) displayed that the most effective (_O(n)_) way to reproduce formant is sampling a function (basically sine) with randomized step (phase).
+[Experiments](https://github.com/dfcreative/sound-experiment) displayed that the most effective (_O(n)_) way to reproduce formant is sampling a function (basically sine) with randomized step (phase). The method is called "phase walking".
 
 [image]
 
@@ -86,10 +88,11 @@ Other methods include:
 * autocorrelation functions
 * subsampling noise
 * analytical solutions
+* ???
 
-## What platform?
+## Why WebGL?
 
-Comparison of available technologies: [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API), [streams](https://nodejs.org/api/stream.html), [threads](https://www.npmjs.com/package/webworker-threads), [web workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) and [WebGL](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API) has shown that for realtime processing of hundreds of formants WebGL is the only viable technology.
+Comparison of available technologies: [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API), [streams](https://nodejs.org/api/stream.html), [threads](https://www.npmjs.com/package/webworker-threads), [web workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) and [WebGL](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API) has shown that for realtime processing of hundreds of formants WebGL is the only viable technology, because it allows for extensive native parallelism unavailable anywhere else.
 
 Nonetheless it has own difficulties, as it was not designed for sound processing. In particular, fragments has no correlation, therefore there is no simple way to walk the "phase path". There are two options for that: walking the path in each fragment or walking in verteces with saving values to varyings. The second method is significantly faster for big numbers of formants, but the [number of varyings](http://webglstats.com/) is limited depending on browser.
 
