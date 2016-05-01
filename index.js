@@ -143,7 +143,7 @@ function Formant (options) {
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
 		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
-		float step, overstep = 0.;
+		float step;
 
 		vec4 sample, formant;
 		vec2 coord = xy;
@@ -162,25 +162,16 @@ function Formant (options) {
 			float frequency = clamp(1. / period, 0., fs);
 			float range = clamp(frequency / tan(pi2 * quality), 0., fs);
 
-			//walk 4 steps
-			step = getStep(frequency + sample.x*range - range*0.5);// + overstep;
-			overstep = min(0., step);
-			step = max(0., step) + overstep;
+			step = getStep(frequency + sample.x*range - range*0.5);
 			sample.x = fract( step + lastSample);
 
-			step = getStep(frequency + sample.y*range - range*0.5);// + overstep;
-			overstep = min(0., step);
-			step = max(0., step) + overstep;
+			step = getStep(frequency + sample.y*range - range*0.5);
 			sample.y = fract( step + sample.x);
 
-			step = getStep(frequency + sample.z*range - range*0.5);// + overstep;
-			overstep = min(0., step);
-			step = max(0., step) + overstep;
+			step = getStep(frequency + sample.z*range - range*0.5);
 			sample.z = fract( step + sample.y);
 
-			step = getStep(frequency + sample.w*range - range*0.5);// + overstep;
-			overstep = min(0., step);
-			step = max(0., step) + overstep;
+			step = getStep(frequency + sample.w*range - range*0.5);
 			sample.w = fract( step + sample.z);
 
 			lastSample = sample.w;
@@ -202,7 +193,6 @@ function Formant (options) {
 
 	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
-	const float sampleRate = ${this.sampleRate}.;
 	const int waveform = ${this.waveform};
 
 	void main () {
