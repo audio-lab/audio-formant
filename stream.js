@@ -150,12 +150,14 @@ function Formant (options) {
 		float lastSample = texture2D(phases, vec2( (width - 0.5) / width, xy.y)).w;
 
 		vec4 sample, formant;
-		vec2 coord = vec2(xy);
+		vec2 coord = xy;
 
 		for (float i = 0.; i < width; i++) {
 			coord.x = i / width;
 
-			sample = texture2D(noise, coord);
+			vec2 noiseCoord = coord + texture2D(phases, vec2(cos(coord.y + coord.x), sin(coord.x))).yx;
+
+			sample = texture2D(noise, noiseCoord);
 
 			formant = texture2D(formants, coord);
 			float period = formant[0];
@@ -435,8 +437,8 @@ Formant.prototype.populate = function (buffer) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[currentPhase]);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-	buffer.phases = new Float32Array(this.formants * this.blockSize);
-	gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phases);
+	// buffer.phases = new Float32Array(this.formants * this.blockSize);
+	// gl.readPixels(0, 0, this.blockSize/4, this.formants, gl.RGBA, gl.FLOAT, buffer.phases);
 
 	//sample rendered phases and distribute to channels
 	gl.useProgram(this.programs.merge);

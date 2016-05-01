@@ -6,25 +6,28 @@ var util = require('audio-buffer-utils');
 var createFormant = require('./stream.js');
 
 
-test.only('Just draw one slice', function () {
+test('Just draw one slice', function () {
 	var formant = createFormant({
-		formants: [1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0]
+		formants: [1/440, 1, 0.5, 0]//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0]
 	});
 
 	var buffer = formant.populate();
-
-	show(buffer.phases, 512, 4);
-	show(buffer, 512, 2);
-
-
 	var buffer2 = formant.populate();
+	var buffer3 = formant.populate();
+	var buffer4 = formant.populate();
+	// console.log(buffer[buffer.length - 1], buffer2[0]);
+
+	// show(buffer.phases, 512, 4);
+	show(buffer3, 512, 2);
+	show(buffer4, 512, 2);
 
 	// show(buffer.left, 512, 1);
 	// show(buffer.right, 512, 1);
 	// show(buffer.phase, 512, 1);
-	showWaveform([].slice.call(buffer, 0, buffer.length/2).concat([].slice.call(buffer2, 0, buffer2.length/2)));
-
-	show(buffer2, 512, 2);
+	showWaveform(
+		[].slice.call(buffer, 0, buffer.length/2).concat(
+		[].slice.call(buffer2, 0, buffer2.length/2))
+	);
 });
 
 
@@ -59,16 +62,28 @@ test('Performance', function () {
 
 
 test('Sound', function () {
-	var formant = createFormant();
+	var formant = createFormant({
+		formants: [
+			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
+			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
+			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0,
+			1/220,1,0.9,0, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
+		]
+	});
 
+	var last = 0;
 	Through(function (buffer) {
-		// if (this.frame > 2) return null;
+		if (this.frame > 20) return null;
 
 		var res = formant.populate();
-
 		var half = res.length / 2;
-		buffer.getChannelData(0).set(res.slice(0, half));
-		buffer.getChannelData(1).set(res.slice(half));
+		var left = res.slice(0, half);
+		var right = res.slice(half);
+		buffer.getChannelData(0).set(left);
+		buffer.getChannelData(1).set(right);
+
+		last = left[left.length - 1];
+
 
 		// var self = this;
 		// util.fill(buffer, function (sample, channel, idx) {
