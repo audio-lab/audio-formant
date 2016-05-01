@@ -1,3 +1,14 @@
+## Q: how do we store frequency?
+
+* Normalized units (f / sample) are nice, but for hearing range they focus in 0..01 range, and others are senseless. Also it depends on sampleRate, which makes impossible to safely change samplerate.
+* Frequency value is natural, but it does not fit into 0..1 range.
+* T - period of a wave:
+	+ fits into 0..1+ range
+		- 20hz = 1/20 = .05 and less. 200hz = 0.005, 2000hz = 0.0005s, 20000hz = 5e-5
+	+ natural to understand and calculate
+* Some contrieved log scale would be unnatural
+
+
 ## Q: should we populate AudioBuffer or simple buffer?
 + allows for figuring out output format properties to render, like sampleRate, channels
 - complicates process of rendering - we have to setup renderer based on this data

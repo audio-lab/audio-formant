@@ -7,7 +7,9 @@ var createFormant = require('./stream.js');
 
 
 test.only('Just draw one slice', function () {
-	var formant = createFormant();
+	var formant = createFormant({
+		formants: [1/220,0,0,0, 1/440,0,0,0, 1/880,0,0,0, 0.5/440,0,0,0]
+	});
 
 	var buffer = formant.populate();
 
@@ -26,7 +28,7 @@ test.only('Just draw one slice', function () {
 });
 
 
-test.only('Performance', function () {
+test('Performance', function () {
 	var formant = createFormant({
 	});
 	// var populate = require('./index2.js');

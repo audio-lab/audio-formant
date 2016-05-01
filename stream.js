@@ -143,22 +143,23 @@ function Formant (options) {
 	}
 
 	void main (void) {
-		vec2 coord = floor(gl_FragCoord.xy);
+		float left = floor(gl_FragCoord.x);
 		vec2 xy = vec2(gl_FragCoord.x / width, gl_FragCoord.y / height);
 
 		float range = 1000.;
 		float lastSample = texture2D(phase, vec2( (width - 0.5) / width, xy.y)).w;
 
 		vec4 sample, formant;
+		vec2 coord = vec2(xy);
 
-		//512x4 is 4096 — pretty much for buffer, but i < width
 		for (float i = 0.; i < width; i++) {
-			//TODO: read 4 formants
-			formant = texture2D(formants, vec2( i / width, xy.y));
+			coord.x = i / width;
 
-			sample = texture2D(noise, vec2( i / width, xy.y));
+			formant = texture2D(formants, coord);
 
-			float frequency = 440.;
+			sample = texture2D(noise, coord);
+
+			float frequency = 1. / formant[0];
 
 			sample.x = fract( getStep(frequency + sample.x*range - range*0.5) + lastSample);
 			sample.y = fract( getStep(frequency + sample.y*range - range*0.5) + sample.x);
@@ -167,7 +168,7 @@ function Formant (options) {
 
 			lastSample = sample.w;
 
-			if (coord.x == i) {
+			if (left == i) {
 				gl_FragColor = sample;
 				break;
 			}
@@ -308,7 +309,7 @@ Formant.prototype.waveform = 0;
 Formant.prototype.setFormants = function (formants) {
 	var gl = this.gl;
 	var data = null;
-	var w = this.blockSize, h = this.formants;
+	var w = this.blockSize/4, h = this.formants;
 
 	if (formants) {
 		if (formants.length/4 !== h) throw Error('Formants data size should correspond to number of formants: ' + h);
