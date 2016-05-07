@@ -11,16 +11,13 @@ var converter = createConverter({
 	formants: 4,
 
 	//output array length (optional)
-	blockSize: 512,
+	samplesPerFrame: 512,
 
 	//output number of channels (optional)
 	channels: 2,
 
 	//sample rate of output audio chunk (optional)
-	sampleRate: 44100,
-
-	//base waveform, 0 - sine (default), 1 - rectangle, 2 - triangle, 3 - saw
-	waveform: 0
+	sampleRate: 44100
 });
 
 
