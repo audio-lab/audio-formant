@@ -11,6 +11,7 @@ var extend = require('xtend/mutable');
 var inherits = require('inherits');
 var Through = require('audio-through');
 
+
 module.exports = Formant;
 
 
@@ -89,24 +90,9 @@ function Formant (options) {
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.samplesPerFrame/4, this.channels, 0, gl.RGBA, gl.FLOAT, null);
 
 
-	//init framebuffers
-	this.framebuffers = {
-		//phases are rendered in turn to keep previous state
-		phases: [
-			gl.createFramebuffer(),
-			gl.createFramebuffer()
-		],
-		merge: gl.createFramebuffer()
-	};
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[0], 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[1], 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.output, 0);
+	//init framebuffer
+	this.framebuffer = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
 
 	//setup shader sources
 	var rectSrc = `
@@ -389,7 +375,8 @@ Formant.prototype.renderPhase = function () {
 
 	gl.useProgram(this.programs.phases);
 	gl.uniform1i(this.locations.phases.phases, prevPhase);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.phases[this.activePhase]);
+
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.phases[this.activePhase], 0);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
 	return this;
@@ -404,7 +391,7 @@ Formant.prototype.renderOutput = function () {
 
 	gl.useProgram(this.programs.merge);
 	gl.uniform1i(this.locations.merge.phases, this.activePhase);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers.merge);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.output, 0);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
 	return this;

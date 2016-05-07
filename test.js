@@ -6,7 +6,7 @@ var util = require('audio-buffer-utils');
 var createFormant = require('./');
 
 
-test('Just draw one slice', function () {
+test('Draw', function () {
 	var formant = createFormant({
 		formants: [1/440, 1, 0.2, 0],//[1/220,1,0.5,0, 1/220,0,0.5,0, 1/880,0,0.5,0, 0.5/440,0,0.5,0],
 		waveform: 0
