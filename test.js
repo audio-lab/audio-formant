@@ -32,7 +32,7 @@ test('Just draw one slice', function () {
 });
 
 
-test.only('Sound', function () {
+test('Sound', function () {
 	createFormant({
 		formants: [
 			1/440,1,0.4,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
@@ -71,7 +71,7 @@ test('Performance', function () {
 
 	test('1s of one sine', function () {
 		for (var i = 0; i < 44100/512; i++) {
-			formant.populate(arr);
+			formant.populate();
 		}
 	});
 });

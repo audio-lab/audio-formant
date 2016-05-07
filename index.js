@@ -64,7 +64,6 @@ function Formant (options) {
 	this.textures = {
 		formants: createTexture(gl),
 		noise: createTexture(gl),
-		source: createTexture(gl),
 		phases: [createTexture(gl), createTexture(gl)],
 		output: createTexture(gl)
 	};
@@ -86,10 +85,6 @@ function Formant (options) {
 	this.setNoise();
 
 	gl.activeTexture(gl.TEXTURE4);
-	gl.bindTexture(gl.TEXTURE_2D, this.textures.source);
-	this.setSource();
-
-	gl.activeTexture(gl.TEXTURE5);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.output);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.samplesPerFrame/4, this.channels, 0, gl.RGBA, gl.FLOAT, null);
 
@@ -185,13 +180,12 @@ function Formant (options) {
 	var mergeSrc = `
 	precision ${this.precision} float;
 
-	uniform sampler2D source;
 	uniform sampler2D formants;
 	uniform sampler2D phases;
 
 	const float width = ${this.samplesPerFrame/4}.;
 	const float height = ${this.formants}.;
-	const int waveform = ${this.waveform};
+	const float pi2 = ${Math.PI * 2};
 
 	void main () {
 		vec4 formant, phase;
@@ -222,10 +216,10 @@ function Formant (options) {
 			float mix = 1. - min( abs(channel - pan), 1.);
 
 			sum += vec4(
-				texture2D(source, vec2(phase.x, 0))[waveform] * amplitude * mix,
-				texture2D(source, vec2(phase.y, 0))[waveform] * amplitude * mix,
-				texture2D(source, vec2(phase.z, 0))[waveform] * amplitude * mix,
-				texture2D(source, vec2(phase.w, 0))[waveform] * amplitude * mix
+				cos(pi2 * phase.x) * amplitude * mix,
+				cos(pi2 * phase.y) * amplitude * mix,
+				cos(pi2 * phase.z) * amplitude * mix,
+				cos(pi2 * phase.w) * amplitude * mix
 			);
 		}
 
@@ -261,7 +255,6 @@ function Formant (options) {
 	this.locations.phases.phases = gl.getUniformLocation(this.programs.phases, 'phases');
 
 	this.locations.merge.phases = gl.getUniformLocation(this.programs.merge, 'phases');
-	this.locations.merge.source = gl.getUniformLocation(this.programs.merge, 'source');
 	this.locations.merge.formants = gl.getUniformLocation(this.programs.merge, 'formants');
 
 	//bind uniforms
@@ -271,7 +264,6 @@ function Formant (options) {
 
 	gl.useProgram(this.programs.merge);
 	gl.uniform1i(this.locations.merge.formants, 2);
-	gl.uniform1i(this.locations.merge.source, 4);
 
 	//current phase texture being used for rendering/stream
 	this.activePhase = 0;
@@ -288,12 +280,6 @@ inherits(Formant, Through);
  */
 Formant.prototype.noiseWidht = 256;
 Formant.prototype.noiseHeight = 256;
-
-
-/**
- * Source texture length
- */
-Formant.prototype.sourceWidth = 256;
 
 
 /**
@@ -370,39 +356,6 @@ Formant.prototype.setNoise = function (data) {
 	return this;
 };
 
-
-/**
- * Fill source texture with values of data,
- * or sine if data is omitted
- */
-Formant.prototype.setSource = function (data) {
-	var gl = this.gl;
-
-	if (!data) {
-		var sourceLen = this.sourceWidth*4;
-		data = new Float32Array(sourceLen);
-		var half = this.sourceWidth/2;
-
-		for (var i = 0; i < this.sourceWidth; i++) {
-			//sin
-			data[i*4] = Math.sin( i * (Math.PI * 2) / this.sourceWidth);
-			//rect
-			data[i*4+1] = i < half ? 1 : -1;
-			//triangle
-			data[i*4+2] = i < half ? 1 - 2 * i / half : -1 + 2 * (i - half) / half;
-			//saw
-			data[i*4+3] = 1 - 2 * i / this.sourceWidth;
-		}
-	}
-	else {
-		sourceLen = data.length;
-	}
-
-	gl.bindTexture(gl.TEXTURE_2D, this.textures.source);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.sourceWidth, 1, 0, gl.RGBA, gl.FLOAT, data);
-
-	return this;
-};
 
 
 /**

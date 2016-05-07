@@ -37,18 +37,12 @@ converter.connect(audioNode);
 //set formants — a sequence of <period, intensity, quality, panning> tuples
 converter.setFormants([0,0,1,1, 1,1,0,0]);
 
-//set formant’s source waveform, by default - <sine, rect, triangle, saw> generated
-converter.setSource(data?);
-
 //regenerate noise texture
 converter.setNoise(data?);
 
 
 //re-render to vary formants data per-sample, faster than `setFormants`
 converter.textures.formants;
-
-//sound sources of formants
-converter.textures.source;
 
 
 //Converter reserves texture spots form 0 to 5 (in case of sharing gl context).
