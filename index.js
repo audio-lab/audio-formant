@@ -8,9 +8,6 @@
 
 var createContext = require('webgl-context');
 var extend = require('xtend/mutable');
-var inherits = require('inherits');
-var Through = require('audio-through');
-
 
 module.exports = Formant;
 
@@ -25,7 +22,7 @@ module.exports = Formant;
 function Formant (options) {
 	if (!(this instanceof Formant)) return new Formant(options);
 
-	Through.call(this, options);
+	extend(this, options);
 
 	var formantsData;
 	if (Array.isArray(this.formants) || ArrayBuffer.isView(this.formants)) {
@@ -71,11 +68,11 @@ function Formant (options) {
 
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[0]);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.samplesPerFrame/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
 
 	gl.activeTexture(gl.TEXTURE1);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.phases[1]);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.samplesPerFrame/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.formants, 0, gl.RGBA, gl.FLOAT, null);
 
 	gl.activeTexture(gl.TEXTURE2);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.formants);
@@ -87,7 +84,7 @@ function Formant (options) {
 
 	gl.activeTexture(gl.TEXTURE4);
 	gl.bindTexture(gl.TEXTURE_2D, this.textures.output);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.samplesPerFrame/4, this.channels, 0, gl.RGBA, gl.FLOAT, null);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.blockSize/4, this.channels, 0, gl.RGBA, gl.FLOAT, null);
 
 
 	//init framebuffer
@@ -110,7 +107,7 @@ function Formant (options) {
 	uniform sampler2D noise;
 	uniform sampler2D phases;
 
-	const float width = ${this.samplesPerFrame/4}.;
+	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
 	const float sampleRate = ${this.sampleRate}.;
 	const float fs = ${this.sampleRate/2}.;
@@ -169,7 +166,7 @@ function Formant (options) {
 	uniform sampler2D formants;
 	uniform sampler2D phases;
 
-	const float width = ${this.samplesPerFrame/4}.;
+	const float width = ${this.blockSize/4}.;
 	const float height = ${this.formants}.;
 	const float pi2 = ${Math.PI * 2};
 
@@ -255,10 +252,8 @@ function Formant (options) {
 	this.activePhase = 0;
 
 	//reusable output array
-	this.outputArray = new Float32Array(this.samplesPerFrame * this.channels);
+	this.outputArray = new Float32Array(this.blockSize * this.channels);
 }
-
-inherits(Formant, Through);
 
 
 /**
@@ -279,14 +274,9 @@ Formant.prototype.formants = 4;
 Formant.prototype.precision = 'lowp';
 
 
-/**
- * 0 - sine
- * 1 - rectangle
- * 2 - triangle
- * 3 - saw
- */
-Formant.prototype.waveform = 0;
-
+Formant.prototype.blockSize = 1024;
+Formant.prototype.sampleRate = 44100;
+Formant.prototype.channels = 2;
 
 
 
@@ -298,7 +288,7 @@ Formant.prototype.waveform = 0;
 Formant.prototype.setFormants = function (formants) {
 	var gl = this.gl;
 	var data = null;
-	var w = this.samplesPerFrame/4, h = this.formants;
+	var w = this.blockSize/4, h = this.formants;
 
 	if (formants) {
 		if (formants.length/4 !== h) throw Error('Formants data size should correspond to number of formants: ' + h);
@@ -358,7 +348,7 @@ Formant.prototype.populate = function (buffer) {
 	this.renderPhase();
 	this.renderOutput();
 
-	gl.readPixels(0, 0, this.samplesPerFrame/4, this.channels, gl.RGBA, gl.FLOAT, buffer);
+	gl.readPixels(0, 0, this.blockSize/4, this.channels, gl.RGBA, gl.FLOAT, buffer);
 
 	return buffer;
 };
@@ -395,23 +385,6 @@ Formant.prototype.renderOutput = function () {
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
 	return this;
-};
-
-
-/**
- * Inherit audio-through process method
- */
-Formant.prototype.process = function (buffer) {
-	var res = this.populate();
-	var len = this.samplesPerFrame;
-
-	for (var channel = 0; channel < buffer.numberOfChannels; channel++) {
-		var data = res.slice(channel * len, channel * len + len);
-
-		buffer.copyToChannel(data, channel);
-	}
-
-	return buffer;
 };
 
 

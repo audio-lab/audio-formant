@@ -1,9 +1,10 @@
 var test = require('tst');
 var Speaker = require('audio-speaker');
-var Through = require('audio-through');
 var AudioBuffer = require('audio-buffer');
 var util = require('audio-buffer-utils');
 var createFormant = require('./');
+var ctx = require('audio-context');
+var Through = require('audio-through');
 
 
 test('Draw', function () {
@@ -30,20 +31,6 @@ test('Draw', function () {
 		[].slice.call(buffer2, 0, buffer2.length/2))
 	);
 });
-
-
-test('Sound', function () {
-	createFormant({
-		formants: [
-			1/440,1,0.4,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
-		],
-		waveform: 0,
-		samplesPerFrame: 512
-	}).pipe(Speaker({
-		samplesPerFrame: 512
-	}));
-});
-
 
 
 test('Performance', function () {
@@ -75,6 +62,39 @@ test('Performance', function () {
 		}
 	});
 });
+
+
+test('Sound', function (done) {
+	var formant = createFormant({
+		formants: [
+			1/440,1,0.4,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
+		],
+		waveform: 0,
+		blockSize: 512
+	})
+
+	Through(function (buffer) {
+		var res = formant.populate();
+		var len = this.samplesPerFrame;
+
+		for (var channel = 0; channel < buffer.numberOfChannels; channel++) {
+			var data = res.slice(channel * len, channel * len + len);
+
+			buffer.copyToChannel(data, channel);
+		}
+
+		if (this.time > 1) this.end();
+
+		return buffer;
+	}, {samplesPerFrame: 512}).pipe(Speaker({
+		samplesPerFrame: 512
+	}));
+
+	setTimeout(function () {
+		done();
+	}, 200);
+});
+
 
 
 function show (pixels, w, h) {
