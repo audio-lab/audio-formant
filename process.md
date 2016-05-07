@@ -1,11 +1,20 @@
+## Q: Which are lifecycle-bound formants descriptors? How do we implement them?
+* Bound formants, which param depends on other formant’s param.
+	+ I guess the best way is generating custom sourcewave - as a sum of required frequencies.
+* Formant modification values
+	+ should be stored as attribute in audio-pulse
+* Waveform
+	+ we can change per-formant waveform now through texture
+
 ## Q: how do we complete marging?
 * Try assessing amplitude and distributing it proportinally on all formants.
+	* ✔ Results are quite nice with the last impl - we assign weights accorging to formant amplitude.
 
 ## Q: how do we store frequency?
 
 * Normalized units (f / sample) are nice, but for hearing range they focus in 0..01 range, and others are senseless. Also it depends on sampleRate, which makes impossible to safely change samplerate.
 * Frequency value is natural, but it does not fit into 0..1 range.
-* T - period of a wave:
+* ✔ T - period of a wave:
 	+ fits into 0..1+ range
 		- 20hz = 1/20 = .05 and less. 200hz = 0.005, 2000hz = 0.0005s, 20000hz = 5e-5
 	+ natural to understand and calculate
@@ -20,7 +29,8 @@
 + How should we detect number of channels then?
 	- Just preset width and channels as input options, don’t figure them out.
 + Formant better knows how to populate audioBuffer the fastest way, that is bonus for users who use audioBuffers
-	- ✔ Create audio-formant-stream module doing dirty job. Here provide clean interface.
+	- ✘ Create audio-formant-stream module doing dirty job. Here provide clean interface.
+		+ ✔ Too many clutter. Just extend audio-through and cover methods, that will be sufficient.
 
 ## Q: should we return renderer function or instance?
 + renderer function is concise and logical - straight API possibility
@@ -49,7 +59,7 @@
 
 
 ## Q: how can we use the fact that noise varying samples are calculated 3 times per triangle, for each vertex?
-A: Use lines, now only 2 times.
+* ✔ Use lines, now only 2 times.
 
 
 
@@ -69,7 +79,7 @@ A2: read last phase, that’s it.
 
 
 ## Q: how can we organize uninterruptible speaker? When GC delays the sound, but not blocks it?
-A: we should put repeatable chunks into a set of audio-buffers connected to output.
+- we should put repeatable chunks into a set of audio-buffers connected to output?
 	Q: what’s the minimal width of repeatable chunk?
 		A: with pure sine - one period.
 			- with unstable noisy sine about a second i guess?
@@ -78,7 +88,7 @@ A: we should put repeatable chunks into a set of audio-buffers connected to outp
 					- but that would create repeating unpleasant noise
 				- ideally we put a set of pure sines acc to freq characteristic
 					- that breaks noises, but purifies sound...
-
+- ✔ we can use offscreencanvas - the spec is soon be implemented in browsers, so safely switch to it later. now focus on development of infrastructure.
 
 
 

@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/audio-lab/formant",
   "dependencies": {
+    "audio-through": "^2.1.0",
     "webgl-context": "^2.2.0",
     "xtend": "^4.0.1"
   },

@@ -27,6 +27,13 @@ var converter = createConverter({
 //populate floatArray with audio data in planar format
 converter.populate(array?);
 
+//pipe formant audio data to stream
+converter.pipe(stream);
+
+//connect formant to Web-Audio-API destination node
+converter.connect(audioNode);
+
+
 //set formants — a sequence of <period, intensity, quality, panning> tuples
 converter.setFormants([0,0,1,1, 1,1,0,0]);
 

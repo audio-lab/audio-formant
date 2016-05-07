@@ -32,39 +32,14 @@ test('Just draw one slice', function () {
 });
 
 
-test('Sound', function () {
-	var formant = createFormant({
+test.only('Sound', function () {
+	createFormant({
 		formants: [
-			1/440,1,0.9,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
+			1/440,1,0.4,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
 		],
-		waveform: 0
-	});
-
-	var last = 0;
-	Through(function (buffer) {
-		// if (this.frame > 20) return null;
-
-		var res = formant.populate();
-		var half = res.length / 2;
-		var left = res.slice(0, half);
-		var right = res.slice(half);
-		buffer.getChannelData(0).set(left);
-		buffer.getChannelData(1).set(right);
-
-		last = left[left.length - 1];
-
-
-		// var self = this;
-		// util.fill(buffer, function (sample, channel, idx) {
-		// 	return Math.sin(Math.PI * 2 * (self.count + idx) * 440 / 44100);
-		// });
-
-		// return buffer;
-	}, {
-		//FIXME: there is a trouble when framesize is too small
+		waveform: 0,
 		samplesPerFrame: 512
-	})
-	.pipe(Speaker({
+	}).pipe(Speaker({
 		samplesPerFrame: 512
 	}));
 });
