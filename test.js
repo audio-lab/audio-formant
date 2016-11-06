@@ -5,6 +5,7 @@ var util = require('audio-buffer-utils');
 var createFormant = require('./');
 var ctx = require('audio-context');
 var Through = require('audio-through');
+var fps = require('fps-indicator')();
 
 
 test('Draw', function () {
@@ -64,7 +65,7 @@ test('Performance', function () {
 });
 
 
-test('Sound', function (done) {
+test.only('Sound', function (done) {
 	var formant = createFormant({
 		formants: [
 			1/440,1,0.4,0//, 1/440,1,0.9,0, 1/880,1,0.9,0, 0.5/880,1,0.9,0
@@ -83,7 +84,7 @@ test('Sound', function (done) {
 			buffer.copyToChannel(data, channel);
 		}
 
-		if (this.time > 1) this.end();
+		if (this.time > 4) this.end();
 
 		return buffer;
 	}, {samplesPerFrame: 512}).pipe(Speaker({
@@ -92,7 +93,7 @@ test('Sound', function (done) {
 
 	setTimeout(function () {
 		done();
-	}, 200);
+	}, 1000);
 });
 
 
