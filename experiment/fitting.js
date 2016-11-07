@@ -64,7 +64,7 @@ for (let i = 0; i < samples.length; i++) {
 plot.render({samples: points, color: [0,0,0,1]});
 
 
-fitKmeans(samples, 2);
+fitKmeans(samples, 3);
 // fitSingle(samples);
 
 
