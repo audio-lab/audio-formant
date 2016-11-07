@@ -10,20 +10,22 @@ const almost = require('almost-equal');
 //draw array
 let plot = createRenderer({
 	context: {antialias: true},
+	autostart: false,
 	draw: (gl, vp, data) => {
 		if (!data) return;
-		let points = [];
-		let samples = data.samples;
-
-		for (let i = 0; i < samples.length; i++) {
-			points.push(2 * i/samples.length - 1);
-			points.push(samples[i]);
-		}
+		let points = data.samples;
 
 		plot.setAttribute('position', points);
 		plot.setUniform('color', data.color);
 		gl.drawArrays(gl.LINE_STRIP, 0, points.length/2);
 	},
+	vert: `
+		attribute vec2 position;
+		void main () {
+			gl_PointSize = 2.;
+			gl_Position = vec4(position, 0, 1);
+		}
+	`,
 	frag: `
 		precision mediump float;
 
@@ -35,6 +37,9 @@ let plot = createRenderer({
 	`
 });
 
+
+//colors for multicurves
+let colors = [[1,0,0,1], [0,.5,0,1], [0,0,.5,1]];
 
 
 //generate spectrum
@@ -51,11 +56,16 @@ let samples = Array(N).fill(0).map((v, i, samples) => {
 });
 
 //draw source data
-plot.render({samples, color: [0,0,0,1]});
+let points = [];
+for (let i = 0; i < samples.length; i++) {
+	points.push(2 * i/samples.length - 1);
+	points.push(samples[i]);
+}
+plot.render({samples: points, color: [0,0,0,1]});
 
 
-// fitKmeans(samples, 2);
-fitSingle(samples);
+fitKmeans(samples, 2);
+// fitSingle(samples);
 
 
 
@@ -63,16 +73,18 @@ fitSingle(samples);
 function fitKmeans(samples, count) {
 	count = count || 1;
 
-	let eps = 0.001;
+	let eps = 0.0001;
 	let prevμ = Array(count).fill(0).map(Math.random);
 
 	//first pick initial means
-	let μ = prevμ;
+	let μ = prevμ.slice();
 	let groups;
+	let idx;
 
 	let c = 0;
 	while (c++ < 10) {
 		groups = Array(count).fill(null).map(v => []);
+		idx = groups.slice().map(v => []);
 		//then calculate distances to means and assign each point a class
 		for (let i = 0; i < samples.length; i++) {
 			let x = i / samples.length;
@@ -87,11 +99,12 @@ function fitKmeans(samples, count) {
 				}
 			}
 			groups[group].push(sample);
+			idx[group].push(i/samples.length);
 		}
 
 		//then for each group estimate mean
 		for (let group = 0; group < count; group++) {
-			μ[group] = mean(groups[group]);
+			μ[group] = mean(groups[group], idx[group]);
 		}
 
 		//if μ did not change from last time, estimate variance and end
@@ -106,17 +119,17 @@ function fitKmeans(samples, count) {
 	console.log(`ended after ${c} iterations`, μ);
 
 	let maxes = Array(count).fill(0).map((v, i) => max(groups[i]));
-	let σ = Array(count).fill(0).map((v, i) => sd(groups[i], μ[i]));
+	let σ = Array(count).fill(0).map((v, i) => sd(groups[i], μ[i], idx[i]));
 
 	//calc variance for groups
 	for (let group = 0; group < count; group++){
 		let samples = groups[group];
-		drawGaussian(maxes[group], μ[group], σ[group], [0.5,.5,.5,1]);
+		drawGaussian(maxes[group], μ[group], σ[group], colors[group]);
 	}
 
 	//draw sum of gaussians
-	let sumData = samples.map((v, i) => {
-		let x = i/N;
+	let sumData = samples.map((v, i, samples) => {
+		let x = i/samples.length;
 		let sum = 0;
 		for (let group = 0; group < count; group++) {
 			sum += norm(x, maxes[group], μ[group], σ[group]);
@@ -124,8 +137,29 @@ function fitKmeans(samples, count) {
 		return sum;
 	});
 
-	//draw estimation
-	plot.render({samples: sumData, color: [1,0,0,1]});
+	//draw sum
+	let points = [];
+	for (let i = 0; i < sumData.length; i++) {
+		points.push(2 * i/sumData.length - 1);
+		points.push(sumData[i]);
+	}
+	plot.render({samples: points, color: [.5,.5,.5,1]});
+
+
+	//draw groups
+	for (let group = 0; group < count; group++) {
+		let values = groups[group];
+		let points = [];
+		let indexes = idx[group];
+
+		for (let i = 0; i < values.length; i++) {
+			points.push(2 * indexes[i] - 1);
+			points.push(values[i]);
+		}
+
+		//draw source data
+		plot.render({samples: points, color: colors[group]});
+	}
 }
 
 
@@ -136,23 +170,23 @@ function fitSingle (samples) {
 
 
 //get x mean
-function mean (samples) {
+function mean (samples, idx) {
 	let sum = 0;
 	let μ = 0;
 	for (let i = 0; i < samples.length; i++) {
-		let x = i/samples.length;
+		let x = idx ? idx[i] : i/samples.length;
 		sum += samples[i];
 		μ += samples[i]*x;
 	}
 	μ /= sum;
 	return μ;
 }
-function sd (samples, μ) {
+function sd (samples, μ, idx) {
 	if (μ == null) μ = mean(samples);
 	let sum = 0;
 	let σ = 0;
 	for (let i = 0; i < samples.length; i++) {
-		let x = i/samples.length;
+		let x = idx ? idx[i] : i/samples.length;
 		sum += samples[i];
 		σ += samples[i]*(x - μ)*(x - μ);
 	}
@@ -177,8 +211,14 @@ function drawGaussian (amp, μ, σ, color) {
 		return norm(i/N, amp, μ, σ)
 	});
 
+	let points = [];
+	for (let i = 0; i < samples.length; i++) {
+		points.push(2 * i/samples.length - 1);
+		points.push(samples[i]);
+	}
+
 	//draw estimation
-	plot.render({samples, color: color});
+	plot.render({samples: points, color: color});
 }
 
 
