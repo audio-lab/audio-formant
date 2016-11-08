@@ -64,8 +64,109 @@ for (let i = 0; i < samples.length; i++) {
 plot.render({samples: points, color: [0,0,0,1]});
 
 
-fitKmeans(samples, 3);
+fitEM(samples, 2);
+// fitKmeans(samples, 3);
 // fitSingle(samples);
+
+
+
+//try to fit mixture of gaussians by EM algorithm
+function fitEM (samples, count) {
+	count = count || 1;
+
+	//first we create random set of distributions
+	//NOTE: we can do better here by taking peaks as means
+	//mean, stdev, amplitude
+	let μ = Array(count).fill(0).map(Math.random);
+	let σ = Array(count).fill(0).map(Math.random);
+	let φ = Array(count).fill(1/count);
+
+	let steps = 10;
+
+	for (let step = 0; step < steps; step++) {
+		//E-step: estimate how much every point belongs to every existing distribution
+		let r = Array(count*samples.length);
+
+		for (let i = 0; i < samples.length; i++) {
+			let x = i/samples.length;
+
+			//real probability of x in each distrib
+			let ρ = Array(count);
+
+			//total probability at the point
+			let Σρ = 0;
+			for (let c = 0; c < count; c++) {
+				ρ[c] = norm(x, φ[c], μ[c], σ[c]);
+				Σρ += ρ[c];
+			}
+
+			//probability that x belongs to cluster c = v/sum
+			//[rc0, rc1, rc2, rc0, rc1, rc2, ...]
+			for (let c = 0; c < count; c++) {
+				r[i*count + c] = ρ[c]/Σρ;
+			}
+		}
+
+		//M-step: update cluster distribution params
+		//m - total responsibility assigned to cluster c, sum of every single sample resp r
+		let m = Array(count).fill(0);
+		let Σm = 0;
+		for (let c = 0; c < count; c++) {
+			for (let i = 0; i < samples.length; i++) {
+				m[c] += r[i*count + c] * samples[i];
+			}
+			Σm += m[c];
+		}
+
+		//get new amps as distribution ratio of the total weight
+		for (let c = 0; c < count; c++) {
+			φ[c] = m[c] / Σm;
+		}
+
+		//get new means as
+		for (let c = 0; c < count; c++) {
+			let Σμ = 0;
+			for (let i = 0; i < samples.length; i++) {
+				let x = i/samples.length;
+				Σμ += x * r[i*count + c] * samples[i];
+			}
+			μ[c] = Σμ/m[c];
+		}
+
+		//get new stdevs
+		for (let c = 0; c < count; c++) {
+			let Σσ = 0;
+			for (let i = 0; i < samples.length; i++) {
+				let x = i/samples.length;
+				Σσ += r[i*count + c] * (x - μ[c])*(x - μ[c]) * samples[i];
+			}
+			σ[c] = Σσ/m[c];
+			σ[c] = Math.sqrt(σ[c]);
+
+			//gotta limit sigma not to be single-point
+			σ[c] = Math.max(σ[c], .0001);
+		}
+
+		//draw means drift
+		for (let c = 0; c < count; c++) {
+			// let points = [];
+			// points.push(μ[c]*2-1, 0);
+			// points.push(μ[c]*2-1, φ[c]);
+
+			let color = colors[c];
+			color[3] = .0 + 1*step/steps;
+
+			// plot.render({samples: points, color: color});
+			drawGaussian(φ[c], μ[c], σ[c], color);
+		}
+	}
+
+	//draw curves
+	for (let c = 0; c < count; c++) {
+		// drawGaussian(φ[c], μ[c], σ[c], colors[c]);
+	}
+
+}
 
 
 
@@ -78,8 +179,8 @@ function fitKmeans(samples, count) {
 
 	//first pick initial means
 	let μ = prevμ.slice();
-	let groups;
-	let idx;
+	let groups; //initial samples distributed by cluster groups
+	let idx; //samples indices distributed by cluster groups
 
 	let c = 0;
 	while (c++ < 10) {
@@ -224,5 +325,6 @@ function drawGaussian (amp, μ, σ, color) {
 
 //return normal dist
 function norm (x, amp, μ, σ) {
+	if (σ === 0) return almost(μ, x) ? amp : 0;
 	return amp * Math.exp( -.5*(x-μ)*(x-μ)/(σ*σ) )
 }
