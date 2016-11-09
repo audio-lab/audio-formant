@@ -45,14 +45,14 @@ let colors = [[1,0,0,1], [0,.5,0,1], [0,0,.5,1]];
 //generate spectrum
 //note that each sample denotes the density at a point (number of samples at a point in other words), not the classical data for k-means
 //in that, k-means does not create classes of output data
-let N = 256;
-let μ = [.65, .45];
+let N = 128;
+let μ = [.55, .35];
 let σ = [.1, .05];
 let samples = Array(N).fill(0).map((v, i, samples) => {
 	let x = i/samples.length;
-	return norm(x,.12/Math.sqrt(τ*σ[0]*σ[0]), μ[0], σ[0])
-	+ norm(x,.08/Math.sqrt(τ*σ[1]*σ[1]), μ[1], σ[1])
-	+ Math.random()*0.02;
+	return norm(x,.75/Math.sqrt(τ*σ[0]*σ[0]), μ[0], σ[0])
+	+ norm(x,.15/Math.sqrt(τ*σ[1]*σ[1]), μ[1], σ[1])
+	+ Math.random()*0.1;
 });
 //normalize samples
 let sum = samples.reduce((curr, prev) => curr+prev);
@@ -76,6 +76,7 @@ fitEM(samples, 2);
 
 
 //try to fit mixture of gaussians by EM algorithm
+//NOTE gaussian should not have deviation outside of the range considered, otherwise it will loose amplitude
 function fitEM (samples, count) {
 	count = count || 1;
 
@@ -86,10 +87,12 @@ function fitEM (samples, count) {
 	let σ = Array(count).fill(0).map(Math.random);
 	let φ = Array(count).fill(1/count);
 
-	let steps = 60;
+	let steps = 100;
 
 	for (let step = 0; step < steps; step++) {
 		//E-step: estimate how much every point belongs to every existing distribution
+		//probability that x belongs to cluster c
+		//in other words, preference of voter over various parties at elections
 		let r = Array(count*samples.length);
 
 		for (let i = 0; i < samples.length; i++) {
@@ -106,16 +109,15 @@ function fitEM (samples, count) {
 				Σρ += ρ[c];
 			}
 
-			//probability that x belongs to cluster c = v/sum
 			//[rc0, rc1, rc2, rc0, rc1, rc2, ...]
 			for (let c = 0; c < count; c++) {
-				r[i*count + c] = samples[i] * ρ[c]/Σρ;
+				r[i*count + c] = Math.pow(samples[i], 1.2) * ρ[c]/Σρ;
 			}
 		}
 
 		//M-step: update cluster distribution params
 		//m - responsibility of a cluster c, sum of every single sample resp r
-		//in other words, area taken by the cluster
+		//in other words, summary vote the pary got at elections
 		let m = Array(count).fill(0);
 		let Σm = 0;
 		for (let c = 0; c < count; c++) {
@@ -151,14 +153,33 @@ function fitEM (samples, count) {
 			σ[c] = Math.sqrt(σ[c]);
 
 			//gotta limit sigma not to be single-point
-			σ[c] = Math.max(σ[c], .000001);
+			σ[c] = Math.max(σ[c], .000000001);
 		}
 
 
 
-		//rendering
-		let maxVs = φ.map((v, c) => v/Math.sqrt(τ*σ[c]*σ[c]));
-		let maxV = maxVs.reduce((curr, prev) => Math.max(curr, prev));
+
+
+
+		//rendering normalized by sum of peaks
+		let maxAmp = 0;
+		let sumData = samples.map((v, i, samples) => {
+			let x = i/samples.length;
+			let sum = 0;
+			for (let c = 0; c < count; c++) {
+				sum += norm(x, φ[c]/Math.sqrt(τ*σ[c]*σ[c]), μ[c], σ[c]);
+			}
+			if (sum > maxAmp) maxAmp = sum;
+			return sum;
+		});
+
+		//draw sum
+		// let points = [];
+		// for (let i = 0; i < sumData.length; i++) {
+		// 	points.push(2 * i/sumData.length - 1);
+		// 	points.push(sumData[i]/maxAmp);
+		// }
+		// plot.render({samples: points, color: [.5,.5,.5,step/steps]});
 
 
 		//draw means drift
@@ -170,12 +191,12 @@ function fitEM (samples, count) {
 			//means
 			let points = [];
 			points.push(μ[c]*2-1, 0);
-			points.push(μ[c]*2-1, φ[c]/Math.sqrt(τ*σ[c]*σ[c])/maxV);
+			points.push(μ[c]*2-1, φ[c]/Math.sqrt(τ*σ[c]*σ[c])/maxAmp);
 			plot.render({samples: points, color: color});
 
 
 			//component
-			drawGaussian(φ[c]/Math.sqrt(τ*σ[c]*σ[c])/maxV, μ[c], σ[c], color);
+			drawGaussian(φ[c]/Math.sqrt(τ*σ[c]*σ[c])/maxAmp, μ[c], σ[c], color);
 		}
 	}
 

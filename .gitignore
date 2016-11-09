@@ -79,6 +79,10 @@ dwsync.xml
 #####################
 node_modules
 
+
+
+docs
+
 # Bower #
 #####################
 bower_components

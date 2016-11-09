@@ -111,3 +111,8 @@ _Panning_ param directs output to one of the output channels. It allows for easi
 > [audio-pulse](https://npmjs.org/package/audio-pulse) — declarative formants based model of sound description.<br/>
 > [audio-dsp coursera course](https://class.coursera.org/audio-002/wiki/week7) — coursera introductory class to digital signal processing for audio.<br/>
 > [periodic-wave](https://webaudio.github.io/web-audio-api/#the-periodicwave-interface) — a way to define phasor in code.<br/>
+
+
+https://www.researchgate.net/publication/220848309_Blind_Separation_of_Sparse_Sources_Using_Jeffrey's_Inverse_Prior_and_the_EM_Algorithm
+
+https://github.com/benjamintd/gaussian-mixture
