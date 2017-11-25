@@ -1,1 +1,0 @@
-* Replace rgba textures with alpha textures

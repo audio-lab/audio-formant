@@ -1,42 +1,48 @@
+# audio-formant
+
+Produce sound from a set of gaussians.
+
 [![npm install audio-formant](https://nodei.co/npm/audio-formant.png?mini=true)](https://npmjs.org/package/audio-formant/)
 
 ```js
-var createConverter = require('audio-formant');
+let createFormant = require('audio-formant');
 
-var converter = createConverter({
-	//can be omitted
-	gl: document.createElement('canvas').getContext('webgl'),
-
-	//formants data or number of formants to process (optional)
-	formants: 4,
-
-	//output array length (optional)
-	blockSize: 512,
+let generate = createFormant({
+	components: [],
 
 	//output number of channels (optional)
 	channels: 2,
 
 	//sample rate of output audio chunk (optional)
 	sampleRate: 44100
-});
+})
 
 
 //populate floatArray with audio data in planar format
-converter.populate(array?);
-
-//set formants — a sequence of <period, intensity, quality, panning> tuples
-converter.setFormants([0,0,1,1, 1,1,0,0]);
-
-//regenerate noise texture
-converter.setNoise(data?);
-
-
-//re-render to vary formants data per-sample, faster than `setFormants`
-converter.textures.formants;
-
-
-//Converter reserves texture spots form 0 to 5 (in case of sharing gl context).
+converter.populate(array?)
 ```
+
+## `createFormant(components|options)`
+
+Create formant generator based on set of formants.
+
+#### `options`
+
+| Property | Default | Meaning |
+|---|---|---|
+| `components`, `formants` | `[]` | Set of formant params. Can be an array or a function.
+| `sampleRate`, `rate` | `44100` | Output data sample rate. |
+| `channels`, `numberOfChannels` | `1` | Output data number of channels. |
+| `format`, `dtype` | `'float32'` | Output data format, eg. `'uint8 interleaved'`, `'float32 planar'`, `'array'`, `'audiobuffer'` etc. See [pcm-convert](https://github.com/audiojs/pcm-convert) and [audio-format](https://github.com/audiojs/audio-format) for list of available formats. |
+| `length`, `frameSize`, `samplesPerFrame` | `1024` | Default length of an output block.
+
+#### `options.formant`
+
+Every formant contains
+
+## `generate(target|length, options?)`
+
+Populate target audio-buffer/array or create a new one of the `length` with formant wave samples. `options` can update formant params.
 
 
 ## What is formant?
@@ -45,9 +51,9 @@ First off, there is a couple of [definitions of formant in wikipedia](https://en
 
 >TODO: image
 
-Formant is a primitive able to describe atomic signal oscillation in terms of _frequency_, _intensity_ and _quality_. The concept is extension of [phasor](https://en.wikipedia.org/wiki/Phasor) with uncertainty parameter. Formant introduces continous scale covering signal forms between white noise and pure oscillation.
+Formant is descriptor of signal oscillation in terms of _frequency_, _intensity_ and _quality_. The concept is extension of [phasor](https://en.wikipedia.org/wiki/Phasor) with uncertainty parameter, which introduces dimension of signal form from white noise to pure oscillation.
 
-The idea hails from [HSL color model](https://en.wikipedia.org/wiki/HSL_and_HSV) applied to sound, where hue is frequency, saturation is quality and lightness is intensity.
+The idea is brought from [HSL color model](https://en.wikipedia.org/wiki/HSL_and_HSV) applied to sound, where hue is frequency, saturation is quality and lightness is intensity.
 
 In reality, formants can be found in almost any oscillation, starting from vocal tract — produced sound is a sum of membrane’s resonance and exhalation’s noise.
 Noise is always a factor existing in any signal, whether in form of dissipation or driving force. That is a fingerprint of reality. And too often it is excluded in analytical systems.
@@ -57,13 +63,14 @@ In metaphorical sense, formant expresses harmony/chaos ratio, quality/quantity r
 ## Why formants?
 
 Formants enable describing and manipulating sound in new ways, engaging the concept of "clarity". They can find multiple applications in music production, search, sound classification, analysis, recognition, reproducing, restoration, experimenting etc.
+
 One can simply imagine manipulations similar to instagram filters for sound — as if sound is reproduced from vinyl, or singed by someone, or spoken by voice in head, or simple equalizer etc.
 
-Formants enable for a more natural way to understand and speak of sound, from music timbres to animal’s speech. They act like scalable vector graphics for sound.
+Formants enable for more natural way of understanding sound, from music timbres to animal voices. They act like scalable vector graphics for sound.
 
 ## What is the method?
 
-[Experiments](https://github.com/dfcreative/sound-experiment) displayed that the most effective (_O(n)_) way to reproduce formant is sampling a function (basically sine) with randomized step (phase). The method is called "phase walking".
+[Experiments](https://github.com/dfcreative/sound-experiment) display that the most effective known way to reproduce formant is sampling a function (basically sine) with randomized step (phase) renders _O(n)_ computational complexity. The method is called "phase walking".
 
 [image]
 
@@ -78,8 +85,7 @@ Other methods include:
 * wavelets
 * autocorrelation functions
 * subsampling noise
-* analytical solutions
-* ???
+* analytical solution
 
 ## Why WebGL?
 
@@ -105,14 +111,16 @@ _Panning_ param directs output to one of the output channels. It allows for easi
 * Formants stream
 * LFO
 
-
 ## Related
 
 > [audio-pulse](https://npmjs.org/package/audio-pulse) — declarative formants based model of sound description.<br/>
 > [audio-dsp coursera course](https://class.coursera.org/audio-002/wiki/week7) — coursera introductory class to digital signal processing for audio.<br/>
 > [periodic-wave](https://webaudio.github.io/web-audio-api/#the-periodicwave-interface) — a way to define phasor in code.<br/>
 
-
 https://www.researchgate.net/publication/220848309_Blind_Separation_of_Sparse_Sources_Using_Jeffrey's_Inverse_Prior_and_the_EM_Algorithm
 
 https://github.com/benjamintd/gaussian-mixture
+
+## License
+
+(c) 2017 Dima Yv. MIT License
