@@ -1,25 +1,23 @@
-# audio-formant
+# audio-formant [![experimental](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges)
 
 Produce sound from a set of gaussians.
 
 [![npm install audio-formant](https://nodei.co/npm/audio-formant.png?mini=true)](https://npmjs.org/package/audio-formant/)
 
 ```js
-let createFormant = require('audio-formant');
+let createFormant = require('audio-formant')
+let output = require('audio-speaker')()
 
-let generate = createFormant({
-	components: [],
+let generate = createFormant([
+	{f: 440, q: 1, a: 1},
+	{f: 880, q: 1, a: .75},
+	{f: 1320, q: 1, a: .5}
+])
 
-	//output number of channels (optional)
-	channels: 2,
-
-	//sample rate of output audio chunk (optional)
-	sampleRate: 44100
-})
-
-
-//populate floatArray with audio data in planar format
-converter.populate(array?)
+(function tick(error) {
+  let audioBuffer = generate()
+  output(audioBuffer, tick)
+})()
 ```
 
 ## `createFormant(components|options)`
@@ -44,6 +42,8 @@ Every formant contains
 
 Populate target audio-buffer/array or create a new one of the `length` with formant wave samples. `options` can update formant params.
 
+
+# History
 
 ## What is formant?
 
@@ -93,7 +93,6 @@ Comparison of available technologies: [Web Audio API](https://developer.mozilla.
 
 Nonetheless it has own difficulties, as it was not designed for sound processing. In particular, fragments has no correlation, therefore there is no simple way to walk the "phase path". There are two options for that: walking the path in each fragment or walking in verteces with saving values to varyings. The second method is significantly faster for big numbers of formants, but the [number of varyings](http://webglstats.com/) is limited depending on browser.
 
-
 ## Implementation
 
 Formant parameters are brought to `0..1` range, because that range is easy to understand, calculate, store, convert, display and also is widely used in every related domain.
@@ -105,11 +104,6 @@ _Intensity_ displays the magnitude of oscillation. It masks the amplitude of pro
 _Quality_ is [Q factor](https://en.wikipedia.org/wiki/Q_factor) normalized to range 0..1 by `quality = f / tan(2 * π * Q)`. Value `1` makes formant a pure harmonic, `0` — white noise. Everything in between is a [degree of freedom](https://en.wikipedia.org/wiki/Degrees_of_freedom_(mechanics)) with fuzzy frequency. It can be understood as a Helmholtz resonator with unstable volume. That parameter makes formant good for description breath-related sounds, like flutes, whistles, natural sound transitions and noise approximation. Also with formant it is natural to express [color of noise](https://en.wikipedia.org/wiki/Colors_of_noise). It is a measure of how much the signal is pure, or focused, in frequency domain.
 
 _Panning_ param directs output to one of the output channels. It allows for easily implementing any number of audio channels. Also it is natural concept known to every sound producer.
-
-## Applications
-
-* Formants stream
-* LFO
 
 ## Related
 

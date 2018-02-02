@@ -108,7 +108,7 @@ let samplePhase = regl({
 	const float FORMANT_COUNT = ${FORMANT_COUNT}.;
 	const float SAMPLE_RATE = ${ctx.sampleRate}.;
 	const float FS = ${ctx.sampleRate/2}.;
-	const float TAU = ${Math.PI / 2};
+	const float TAU = ${Math.PI * 2};
 
 	void main (void) {
 		float left = floor(gl_FragCoord.x);
