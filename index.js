@@ -78,7 +78,7 @@ function createFormant(options) {
 
 			for (let i = 0, l = formantData.length; i < l; i++) {
 
-				phase += sample(average, 0)
+				phase += sample(average, average/2)
 				phase %= 1
 
 				formantData[i] = sine(phase)

@@ -9,7 +9,7 @@ const write = require('../web-audio-write')()
 // TODO: bench GPU/WAA
 
 t('main', t => {
-	let generateFormant = createFormant([440, 1, 1])
+	let generateFormant = createFormant([880, 1, 1])
 
 	let end = false;
 	;(function tick () {
