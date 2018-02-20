@@ -24,6 +24,10 @@ function createFormant(options) {
 
 		if (Array.isArray(options) || ArrayBuffer.isView(options)) options = { components: options }
 
+		options = pick(options, {
+			components: 'component components formant formants item items harmonic harmonics'
+		}, true)
+
 		// [f,a,q, f,a,q, f,a,q, ...] → [[f, a, q], [f, a, q], ...]
 		if ( options.components.length && typeof options.components[0] === 'number' ) {
 			let components = []
@@ -33,12 +37,8 @@ function createFormant(options) {
 			options.components = components
 		}
 
-		let { components } = pick(options, {
-			components: 'component components formant formants item items harmonic harmonics'
-		})
-
 		// for every formant create a filter node connected to white noise node
-		formants = components.map((component, i) => {
+		formants = options.components.map((component, i) => {
 			if (component.length) component = {
 				f: component[0], a: component[1], q: component[2]
 			}
