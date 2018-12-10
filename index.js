@@ -62,7 +62,7 @@ function oscillate(dst, o) {
 	let variance = Math.min(frequency / quality, 1)
 
 	for (let i = 0, l = dst.length; i < l; i++) {
-		t += sample(average, average/2)
+		t += sample(average, average/10)
 		t %= 1
 
 		dst[i] = sine(t)
