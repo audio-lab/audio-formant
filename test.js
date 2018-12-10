@@ -1,33 +1,17 @@
 'use strict'
 
 const t = require('tape')
-const createFormant = require('./')
-const write = require('../web-audio-write')()
-const createSettings = require('../settings-panel')
-
-// TODO: settings-panel
-// TODO: gl-waveform
-// TODO: bench GPU/WAA
+const f = require('./')
+const out = require('web-audio-write')()
 
 t('main', t => {
-	let formant = createSettings({
-		frequency: 880,
-		quality: 1,
-		amplitude: 1
-	}, {
-		fields: { frequency: {min: 0, max: 10000} },
-		change: formant => {
-			generateFormant.update([formant])
-		}
-	})
+	let end = false
+	let buf = new AudioBuffer({sampleRate: 44100, length: 1024, numberOfChannels: 1})
 
-	let generateFormant = createFormant([formant])
-
-	let end = false;
 	;(function tick () {
-		if (end) return;
-		write(generateFormant(), tick)
-	})();
+		if (end) return
+		out(f(buf, {frequency: 4400, quality: 1}), tick)
+	})()
 
 	setTimeout(() => {end = true}, 500)
 
