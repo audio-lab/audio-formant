@@ -17,6 +17,19 @@ let buf = new AudioBuffer
 })()
 ```
 
+## v2.0
+
+// Create N formants
+let generate = createFormants(16)
+
+generate[0].push({
+	duration: 1s,
+	freq: [0, 10],
+	q: 5,
+	amp: [1, 2, 9]
+})
+
+
 ## `let result = formant(length|dst, options)`
 
 Populate target audio-buffer/array of the `length` with formant wave samples. `options` can update formant params.

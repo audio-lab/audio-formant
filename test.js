@@ -1,59 +1,199 @@
 'use strict'
 
 const t = require('tape')
-const f = require('./')
-const out = require('../web-audio-write')()
+const out = require('web-audio-write')()
 const fft = require('fourier-transform')
-const spectrum = require('../gl-waveform')({ range: [0, 1024] })
+const spectrum = require('../gl-waveform')()
 const db = require('decibels')
 const applyWindow = require('window-function/apply')
-const wfn = require('window-function/blackman-harris')
+const wfn = require('window-function/blackman-nuttall')
 const panzoom = require('pan-zoom')
+const fps = require('fps-indicator')('bottom-left')
+let raf = require('raf')
+// let {MDCSlider} = require('@material/slider/dist/mdc.slider')
+let dom = require('@ungap/create-content').default
+let fs = require('fs')
+let css = require('insert-css')
+// css(fs.readFileSync(require.resolve('@material/slider/dist/mdc.slider.min.css'), 'utf-8'))
+css( fs.readFileSync(require.resolve('preact-material-components/style.css'), 'utf-8'));
+
+import {h, render} from 'preact';
+import {Slider, FormField, Typography} from 'preact-material-components';
+
+// create settings
+// let {render} = require('react-dom')
+// let h = require('htm').default.bind(require('react').createElement)
+
+// let Typography = require('@material-ui/core/Typography').default
+// let Slider = require('@material-ui/lab/Slider').default
 
 
+// document.body.appendChild(document.createElement('div')).id = 'abc'
+
+// var value = 3
+
+// function doreact() {
+// render(h`
+// 	<div style="${{width: 300}}">
+// 	<${Typography} id="label">Slider label<//>
+
+// 	<${Slider}
+// 	      min=${0}
+// 	      max=${6}
+// 	      step=${1}
+// 		  value=${value}
+// 		  onChange=${(e, v) => {
+// 		  	value = v
+// 		  	doreact()
+// 		  }}
+// 		aria-labelledby="label" />
+// 	</div>
+// `, document.querySelector('#abc'))
+// }
+// doreact()
 
 
-t('main', t => {
+t.only('waa node', t => {
+	let context = require('audio-context')()
+	let formant = require('./index')(context)
+
+	var analyser = context.createAnalyser();
+	analyser.fftSize = 8192;
+
+	formant.connect(analyser)
+
+	spectrum.amplitude = [0, 400]
+
+	raf(function draw () {
+		let arr = new Uint8Array(analyser.frequencyBinCount)
+		analyser.getByteFrequencyData(arr)
+		// let arr = new Float32Array(analyser.frequencyBinCount)
+		// analyser.getFloatFrequencyData(arr)
+		if (arr[0] !== -Infinity) {
+			spectrum.update(arr)
+			spectrum.render()
+		}
+
+		raf(draw)
+	})
+
+	analyser.connect(context.destination)
+
+	document.body.style.overflow = 'hidden'
+
+	/* @jsx h */
+	render(
+		<div>
+			<Typography title>Q factor</Typography>
+			<Slider id="q"
+				onInput={e => {
+					let df = formant.frequency.value * (100 - e.detail.value) / 100
+					formant.Q.value = !df ? 99999 : formant.frequency.value / df
+				}}
+				step={1}
+				min={0}
+				value={0}
+				max={100}/>
+			<Typography title>Frequency</Typography>
+			<Slider id="f"
+				onInput={e => {
+					formant.frequency.value = e.detail.value
+				}}
+				step={1}
+				min={0}
+				value={440}
+				max={22050}/>
+		</div>
+	, document.body)
+
+	t.end()
+})
+
+
+t.skip('walker', t => {
+	const f = require('./experiment/walker')
+
 	let end = false
 	let buf = new AudioBuffer({sampleRate: 44100, length: 2048, numberOfChannels: 1})
 
-	;(function tick () {
-		if (end) return out(null)
-		f(buf, {frequency: 1000, quality: 1})
 
-		out(buf, tick)
+	// writer
+	// spectrum.range = -2048
 
-		// spectrum.push(buf.getChannelData(0))
-		show(buf)
-	})()
-	setTimeout(() => {out(null)}, 2000)
+	// ;(function tick () {
+	// 	if (end) return out(null)
+
+	// 	f(buf, {frequency: 440, quality: 1})
+
+	// 	out(buf, tick)
+
+	// 	// spectrum.push(buf.getChannelData(0)).clear().render()
+	// 	show(buf)
+	// })()
+	// setTimeout(() => {out(null)}, 2000)
 
 
 	//buffer source node
-	// var context = require('audio-context')()
-	// let bufferNode = context.createBufferSource()
-	// bufferNode.loop = true;
-	// bufferNode.buffer = new AudioBuffer({sampleRate: 44100, length: 2048, numberOfChannels: 1})
+	var context = require('audio-context')()
+	let bufferNode = context.createBufferSource()
+	bufferNode.loop = true;
+	bufferNode.buffer = new AudioBuffer({sampleRate: 44100, length: 2048, numberOfChannels: 1})
 
-	// let node = context.createScriptProcessor(2048)
-	// node.addEventListener('audioprocess', function tick (e) {
-	// 	f(buf, {frequency: 1000, quality: .5})
+	let freq = 4000
 
-	// 	console.time(1)
-	// 	for (var channel = 0, l = Math.min(buf.numberOfChannels, e.outputBuffer.numberOfChannels); channel < l; channel++) {
-	// 		e.outputBuffer.getChannelData(channel).set(buf.getChannelData(channel));
-	// 	}
-	// 	console.timeEnd(1)
+	let node = context.createScriptProcessor(2048)
+	node.addEventListener('audioprocess', function tick (e) {
+		f(buf, {frequency: freq, quality: .5})
 
-	// 	show(buf)
-	// })
+		for (var channel = 0, l = Math.min(buf.numberOfChannels, e.outputBuffer.numberOfChannels); channel < l; channel++) {
+			e.outputBuffer.getChannelData(channel).set(buf.getChannelData(channel));
+		}
 
-	// bufferNode.connect(node)
-	// bufferNode.start()
+		// show(buf)
+	})
 
-	// node.connect(context.destination)
+	bufferNode.connect(node)
+	bufferNode.start()
 
-	// setTimeout(() => {node.disconnect()}, 2000)
+
+	var analyser = context.createAnalyser();
+	analyser.fftSize = 2048;
+
+	// add biquad filter after script processor
+	let filterNode = context.createBiquadFilter()
+	filterNode.type = 'bandpass'
+	filterNode.frequency.value = freq
+	filterNode.Q.value = 1000
+	let filterNode2 = context.createBiquadFilter()
+	filterNode2.type = 'bandpass'
+	filterNode2.frequency.value = freq
+	filterNode2.Q.value = 1000
+	let filterNode3 = context.createBiquadFilter()
+	filterNode3.type = 'bandpass'
+	filterNode3.frequency.value = freq
+	filterNode3.Q.value = 1000
+
+	node.connect(filterNode)
+	filterNode.connect(filterNode2)
+	filterNode2.connect(filterNode3)
+	filterNode3.connect(analyser)
+
+	raf(function draw () {
+		let arr = new Uint8Array(analyser.frequencyBinCount)
+		analyser.getByteFrequencyData(arr)
+		// let arr = new Float32Array(analyser.frequencyBinCount)
+		// analyser.getFloatFrequencyData(arr)
+		if (arr[0] !== -Infinity) {
+			spectrum.update(arr)
+			spectrum.render()
+		}
+
+		raf(draw)
+	})
+
+	analyser.connect(context.destination)
+
+	setTimeout(() => {node.disconnect()}, 2000)
 
 	t.end()
 })
@@ -74,14 +214,17 @@ t('samples are never off the sine')
 
 t('spectrum curve is gaussian')
 
+t('pure formants generate the same as pure spectrum')
+
 
 function show (buf) {
 	let data = buf.getChannelData(0)
-	data = applyWindow(data.slice(), wfn)
+	// data = applyWindow(data.slice(), wfn)
 	let mags = fft(data)
 	let decibels = mags.map((value) => db.fromGain(value))
 
-	spectrum.update(decibels)
+	// spectrum.update(decibels)
+	spectrum.update(mags)
 	spectrum.render()
 }
 
