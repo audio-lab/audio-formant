@@ -10,11 +10,10 @@ const wfn = require('window-function/blackman-nuttall')
 const panzoom = require('pan-zoom')
 const fps = require('fps-indicator')('bottom-left')
 let raf = require('raf')
-// let {MDCSlider} = require('@material/slider/dist/mdc.slider')
 let dom = require('@ungap/create-content').default
 let fs = require('fs')
 let css = require('insert-css')
-// css(fs.readFileSync(require.resolve('@material/slider/dist/mdc.slider.min.css'), 'utf-8'))
+
 css( fs.readFileSync(require.resolve('preact-material-components/style.css'), 'utf-8'));
 
 import {h, render} from 'preact';
@@ -53,8 +52,12 @@ import {Slider, FormField, Typography} from 'preact-material-components';
 // doreact()
 
 
-t.only('waa node', t => {
+t.only('waa node', async t => {
 	let context = require('audio-context')()
+	let touchUnlock = require('web-audio-touch-unlock').default
+
+	let unlocked = await touchUnlock(context)
+
 	let formant = require('./index')(context)
 
 	var analyser = context.createAnalyser();
@@ -67,6 +70,7 @@ t.only('waa node', t => {
 	raf(function draw () {
 		let arr = new Uint8Array(analyser.frequencyBinCount)
 		analyser.getByteFrequencyData(arr)
+
 		// let arr = new Float32Array(analyser.frequencyBinCount)
 		// analyser.getFloatFrequencyData(arr)
 		if (arr[0] !== -Infinity) {
@@ -89,6 +93,7 @@ t.only('waa node', t => {
 				onInput={e => {
 					let df = formant.frequency.value * (100 - e.detail.value) / 100
 					formant.Q.value = !df ? 99999 : formant.frequency.value / df
+					console.log(formant.frequency.value, df)
 				}}
 				step={1}
 				min={0}

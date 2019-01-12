@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node test.js",
-    "test:browser": "budo test.js"
+    "test:browser": "budo test.js",
+    "build": "budo -b test.js | indexhtmlify | mobilify > docs/fq.html "
   },
   "repository": {
     "type": "git",
@@ -34,34 +35,22 @@
     "audio-oscillator": "^3.1.1",
     "gauss-random": "^1.0.1",
     "pan-zoom": "^3.4.0",
-    "periodic-function": "^1.1.4",
-    "tape": "^4.9.1",
     "window-function": "^2.1.0"
   },
   "devDependencies": {
-    "@material-ui/core": "^3.6.2",
-    "@material-ui/lab": "^3.0.0-alpha.25",
-    "@material/drawer": "^0.42.0",
-    "@material/slider": "^0.43.0",
     "@ungap/create-content": "^0.1.4",
-    "aliasify": "^2.1.0",
-    "browser-resolve": "^1.11.3",
-    "browserify-css": "^0.14.0",
     "decibels": "^2.0.0",
-    "esmify": "^2.0.0",
+    "enable-mobile": "^1.0.7",
     "fourier-transform": "^1.1.2",
     "fps-indicator": "^1.3.0",
-    "gl-waveform": "^4.1.4",
+    "gl-waveform": "^4.3.3",
     "htm": "^1.0.1",
+    "insert-css": "^2.0.0",
     "preact": "^8.4.2",
     "preact-compat": "^3.18.4",
     "preact-material-components": "^1.5.5",
-    "react": "^16.6.3",
-    "react-dom": "^16.6.3",
-    "react-sidebar": "^3.0.2",
-    "regl": "^1.3.9",
-    "regl-line2d": "^3.0.12",
-    "sheetify": "^7.3.3",
+    "tape": "^4.9.1",
+    "web-audio-touch-unlock": "^1.0.1",
     "web-audio-write": "^1.3.2"
   }
 }
